@@ -1,0 +1,3 @@
+[submodule "external/Replication_DCP"]
+	path = external/Replication_DCP
+	url = ssh://git@github.com/kwuthrich/Replication_DCP
