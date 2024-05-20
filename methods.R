@@ -66,3 +66,49 @@ dcp.qr <- function(data.train,
   return(list(coverage = coverage, leng = leng))
 }
 
+
+#### GLM-based DR
+dcp.dr <- function(data.train, data.valid, data.test, tau, alpha) {
+  ys <- quantile(unique(c(data.train$Y, data.valid$Y)), tau)
+  ## We perform DR manually, by fitting a separate GLM for various values of y
+  beta <- sapply(ys,
+    \(y) glm((Y <= y) ~ X,
+      data = data.train,
+      family = binomial(link = "logit"))
+    $coefficients)
+
+  local.predict <- function(data) { return(plogis(cbind(1, data$X) %*% beta)) }
+
+  local.score <- function(data, pred = local.predict(data)) {
+    score <- rep(NA, nrow(data))
+    for (i in 1:nrow(data)) {
+      ## We obtain the PIT as the linear interpolation of the predicted data at the true output
+      score[i] <- approx(x = ys,
+        y = pred[i, ],
+        xout = data[i, "Y"],
+        rule=2)$y |>
+              dcp.score()
+    }
+    return(score)
+  }
+
+  ## Calculate threshold based on validation set and calculate coverage on test set
+  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  
+  pred.test <- local.predict(data.test)
+
+  ## Estimate coverage as test values within threshold
+  coverage <- local.score(data.test, pred = pred.test) <= threshold
+
+  ## Calculate length of interval(s)
+  ## NOTE <2024-05-20 Mo> Calculating the length of the interval remains a mystery.
+  leng <- rep(NA, nrow(data.test))
+  for (i in 1:nrow(data.test)) {
+    tmp <- ys[dcp.score(pred.test[i, ]) <= threshold]
+    leng[i] <- max(tmp) - min(tmp)
+  }
+
+  leng[which(leng == -Inf)] <- NA
+
+  return(list(coverage = coverage, leng = leng))
+}
