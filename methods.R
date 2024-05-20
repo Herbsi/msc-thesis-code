@@ -112,3 +112,49 @@ dcp.dr <- function(data.train, data.valid, data.test, tau, alpha) {
 
   return(list(coverage = coverage, leng = leng))
 }
+
+
+#### DCP-IDR
+
+dcp.idr <- function(Y0, X0, Y1, X1, Y.test, X.test, alpha.sig) {
+  ## TODO: Rewrite with new interface.
+  fm <- idr(Y0, as_tibble(X0)) # Fit IDR to (`X0', `Y0')
+
+  ## Scores on calibration set
+  pred <- predict(fm, as_tibble(X1))
+  cs <- abs(pit(pred, Y1) - 1 / 2)
+
+  ## Calculate threshold as (1 - α) * (1 + |Y1|) quantile of the scores
+  k <- ceiling((1 - alpha.sig) * (1 + length(Y1)))
+  threshold <- sort(cs)[k]
+
+  ## Scores on test set
+  pred.test <- predict(fm, as_tibble(X.test))
+  cs.test <- abs(pit(pred.test, Y.test) - 1 / 2)
+
+  cov.idr <- cs.test <= threshold
+
+  ## Calculate length of interval
+  lb <- ub <- rep(NA, length(Y.test))
+  for (i in 1:length(Y.test)) {
+    ## NOTE 2024-05-19 I don't fully understand the calculation of the interval length yet.
+    ys <- quantile(unique(c(Y0, Y1)), seq(0.001, 0.999, length=nrow(pred.test[[i]])))
+    
+    pred.i <- as_tibble(pred.test[[i]])
+    indices <- pred.i |>
+      mutate(indices = abs(cdf - 1 / 2) <= threshold, .keep = "unused") |>
+      pull(indices)
+      
+    ci <- ys[indices]
+    ub[i] <- max(ci)
+    lb[i] <- min(ci)
+  }
+
+  leng.idr <- ub - lb
+  leng.idr[which(leng.idr == -Inf)] <- NA
+  
+  return(list(
+    cov.idr = cov.idr,
+    leng.idr = leng.idr
+    ))
+}
