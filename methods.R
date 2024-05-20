@@ -1,0 +1,68 @@
+################################################################################
+## Reimplementations of distributional regression methods
+################################################################################
+
+library(quantreg)
+library(purrr)
+
+### Auxiliary functions
+
+train.valid.split <- function(data) {
+  ## Split data evenly `(X, Y)' into training set `(X0, Y0)' and calibration set `(X1, Y1)'
+  ## TODO <2024-05-20 Mo> if `length(Y)' is odd, `(X0, Y0)' is one shorter than `(X1, Y1)'
+  n <- nrow(data)
+
+  return(
+    list(data.train = data[1:floor(n/2), ],
+      data.valid = data[(floor(n/2)+1):n, ] 
+    )
+  )
+}
+
+
+dcp.score <- function(ranks) { return(abs(ranks - 0.5)) }
+
+dcp.threshold <- function(scores, alpha) {
+  return(sort(scores)[ceiling((1 - alpha) * (1 + length(scores)))])
+}
+
+
+### Distributional regression functions
+
+#### Quantile regression
+dcp.qr <- function(data.train,
+                   data.valid,
+                   data.test,
+                   alpha,
+                   tau = seq(0.001, 0.999, length = 200)) {
+  ## Fit QR model
+  ## Note that rq is able to fit multiple values of `tau' at once.
+  model <- rq(Y ~ X, data = data.train, tau = tau)
+
+  ## Scoring with this model 
+  local.score <- function(data, pred = predict(model, newdata = data)) {
+    ## We calculate the rank as fraction of quantiles below the predicted values
+    ## Hence rowMeans(...)
+    return(dcp.score(rowMeans(pred <= data$Y)))
+  }
+
+  ## Calculate threshold based on validation set and calculate coverage on test set
+  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  
+  pred.test <- predict(model, newdata = data.test)
+
+  ## Estimate coverage as test values within threshold
+  coverage <- local.score(data.test, pred.test) <= threshold
+
+  ## Calculate length of interval(s)
+  leng <- apply(
+    pred.test[, dcp.score(tau) <= threshold], # TODO <2024-05-20 Mo> I don't understand why we use these columns yet.
+    1,
+    \(row) max(row) - min(row)
+  )
+
+  leng[which(leng == -Inf)] <- NA
+
+  return(list(coverage = coverage, leng = leng))
+}
+
