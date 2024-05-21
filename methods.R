@@ -30,12 +30,10 @@ dcp.threshold <- function(scores, alpha) {
 
 ### Distributional regression functions
 
+tau = seq(0.001, 0.999, length = 200)
+
 #### Quantile regression
-dcp.qr <- function(data.train,
-                   data.valid,
-                   data.test,
-                   alpha,
-                   tau = seq(0.001, 0.999, length = 200)) {
+dcp.qr <- function(data.train, data.valid, data.test, alpha) {
   ## Fit QR model
   ## Note that rq is able to fit multiple values of `tau' at once.
   model <- rq(Y ~ X, data = data.train, tau = tau)
@@ -65,6 +63,66 @@ dcp.qr <- function(data.train,
   leng[which(leng == -Inf)] <- NA
 
   return(list(coverage = coverage, leng = leng))
+}
+
+
+#### DCP-QR*
+dcp.opt <- function(data.train, data.valid, data.test, alpha){
+  Y0 <- data.train$Y
+  X0 <- as.matrix(data.train$X)
+  Y1 <- data.valid$Y
+  X1 <- as.matrix(data.valid$X)
+  Y.test <- data.test$Y
+  X.test <- as.matrix(data.test$X)
+  alpha.sig <- alpha
+  taus <- tau
+  
+  ## START PLAGARISM
+  XXX <- rbind(X1,X.test)
+  YYY <- c(Y1,Y.test)
+  
+  beta.qr <- matrix(NA,dim(X0)[2]+1,length(taus))
+  for (t in 1:length(taus)){
+    beta.qr[,t] <- rq.fit.br(cbind(1,X0),Y0,tau=taus[t])$coefficients
+  }
+  tQ.yx   <- cbind(1,XXX)%*%beta.qr
+  Q.yx    <- t(apply(tQ.yx,1,FUN=sort))
+  u.hat <- rowMeans((Q.yx <= matrix(YYY,length(YYY),dim(beta.qr)[2])))
+  
+  bhat <- rep(NA,length(YYY))
+  b.grid <- taus[taus<=alpha.sig]
+  for (t in 1:length(YYY)){
+    leng <- rep(NA,length(b.grid))
+    leng.test <- rep(NA,length(b.grid))
+    for (b in 1:length(b.grid)){
+      Q.yx.u <- approx(x=taus,y=Q.yx[t,],xout=(b.grid[b]+1-alpha.sig),rule=2)$y
+      leng[b] <- Q.yx.u -Q.yx[t,b]
+    }
+    bhat[t] <- b.grid[which.min(leng)]
+  }
+  
+  ind.test <- (length(Y1)+1):length(YYY)
+  
+  cs.opt <- abs(u.hat-bhat-(1-alpha.sig)/2)
+  
+  k           <- ceiling((1-alpha.sig)*(1+length(Y1)))
+  threshold   <- sort(cs.opt[-ind.test])[k]
+  
+  cov.opt   <- (cs.opt[ind.test] <= threshold)
+  
+  leng.opt <- NULL
+  for (t in ind.test){
+    ci.grid <- abs(taus - bhat[t]-(1-alpha.sig)/2)
+    ci <- Q.yx[t,(ci.grid <= threshold)]
+    ub <- max(ci)
+    lb <- min(ci)
+    leng.opt <- c(leng.opt,ub-lb)
+  }
+  
+  leng.opt[which(leng.opt==-Inf)] <- NA
+  
+  return(list(coverage=cov.opt, leng=leng.opt))  
+  ## END PLAGARISM
 }
 
 
