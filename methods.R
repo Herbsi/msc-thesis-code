@@ -234,3 +234,25 @@ cp.ols <- function(data.train, data.valid, data.test, alpha) {
 }
 
 
+#### CP-loc
+## NOTE <2024-05-21 Tue> I don't know what this method does yet.
+
+cp.loc <- function(data.train, data.valid, data.test, alpha) {
+  model.reg <- lm(Y ~ X, data = data.train)
+
+  model.sig <- lm(abs(residuals(model.reg)) ~ X, data = data.train)
+
+  local.score <- function(data, pred = predict(model.reg, newdata = data)) {
+    return(abs(data$Y - pred) / abs(predict(model.sig, newdata = data)))
+  }
+
+  threshold <- dcp.threshold(local.score(data.valid), alpha)
+
+  lb <- predict(model.reg, newdata = data.test) - threshold * abs(predict(model.sig, data.test))
+  ub <- predict(model.reg, newdata = data.test) + threshold * abs(predict(model.sig, data.test))
+
+  coverage <- data.test$Y <= ub & data.test$Y >= lb
+  leng <- ub - lb
+
+  return(list(coverage = coverage, leng = leng))
+}
