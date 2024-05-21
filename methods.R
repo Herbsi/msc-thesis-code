@@ -127,7 +127,7 @@ dcp.opt <- function(data.train, data.valid, data.test, alpha){
 
 
 #### GLM-based DR
-dcp.dr <- function(data.train, data.valid, data.test, tau, alpha) {
+dcp.dr <- function(data.train, data.valid, data.test, alpha) {
   ys <- quantile(unique(c(data.train$Y, data.valid$Y)), tau)
   ## We perform DR manually, by fitting a separate GLM for various values of y
   beta <- sapply(ys,
