@@ -2,6 +2,7 @@
 ## Reimplementations of distributional regression methods
 ################################################################################
 
+library(isodistrreg)
 library(quantreg)
 library(purrr)
 
@@ -116,45 +117,38 @@ dcp.dr <- function(data.train, data.valid, data.test, tau, alpha) {
 
 #### DCP-IDR
 
-dcp.idr <- function(Y0, X0, Y1, X1, Y.test, X.test, alpha.sig) {
-  ## TODO: Rewrite with new interface.
-  fm <- idr(Y0, as_tibble(X0)) # Fit IDR to (`X0', `Y0')
+dcp.idr <- function(data.train, data.valid, data.test, alpha) {
+  fm <- idr(data.train$Y, data.train[, "X"])
 
+  local.score <- function(data, pred = predict(fm, data[, "X"])) {
+    return(dcp.score(pit(pred, data$Y)))
+  }
+  
   ## Scores on calibration set
-  pred <- predict(fm, as_tibble(X1))
-  cs <- abs(pit(pred, Y1) - 1 / 2)
-
-  ## Calculate threshold as (1 - α) * (1 + |Y1|) quantile of the scores
-  k <- ceiling((1 - alpha.sig) * (1 + length(Y1)))
-  threshold <- sort(cs)[k]
+  threshold <- dcp.threshold(local.score(data.valid), alpha)
 
   ## Scores on test set
-  pred.test <- predict(fm, as_tibble(X.test))
-  cs.test <- abs(pit(pred.test, Y.test) - 1 / 2)
+  pred.test <- predict(fm, data.test[, "X"])
+  
+  coverage <- local.score(data.test, pred.test) <= threshold
 
-  cov.idr <- cs.test <= threshold
-
-  ## Calculate length of interval
-  lb <- ub <- rep(NA, length(Y.test))
-  for (i in 1:length(Y.test)) {
-    ## NOTE 2024-05-19 I don't fully understand the calculation of the interval length yet.
-    ys <- quantile(unique(c(Y0, Y1)), seq(0.001, 0.999, length=nrow(pred.test[[i]])))
+  ## Calculate length of interval(s)
+  leng <- rep(NA, nrow(data.test))
+  for (i in 1:nrow(data.test)) {
+    ## NOTE <2024-05-19 Sun> This is inspired by the length calculation for `dcp.dr', but I don't fully understand how it works yet.
+    ys.i <- quantile(unique(c(data.train$Y, data.valid$Y)), seq(0.001, 0.999, length=nrow(pred.test[[i]])))
     
-    pred.i <- as_tibble(pred.test[[i]])
-    indices <- pred.i |>
-      mutate(indices = abs(cdf - 1 / 2) <= threshold, .keep = "unused") |>
+    indices <- as_tibble(pred.test[[i]]) |>
+      mutate(indices = dcp.score(cdf) <= threshold, .keep = "unused") |>
       pull(indices)
-      
-    ci <- ys[indices]
-    ub[i] <- max(ci)
-    lb[i] <- min(ci)
+
+    tmp <- ys.i[indices]
+    leng[i] <- max(tmp) - min(tmp)
   }
 
-  leng.idr <- ub - lb
-  leng.idr[which(leng.idr == -Inf)] <- NA
+  leng[which(leng == -Inf)] <- NA
   
-  return(list(
-    cov.idr = cov.idr,
-    leng.idr = leng.idr
-    ))
+  return(list(coverage = coverage, leng = leng))
 }
+
+
