@@ -210,3 +210,27 @@ dcp.idr <- function(data.train, data.valid, data.test, alpha) {
 }
 
 
+#### CP-OLS
+
+cp.ols <- function(data.train, data.valid, data.test, alpha) {
+  model <- lm(Y ~ X, data = data.train)
+
+  local.score <- function(data, pred = predict(model, newdata = data)) {
+    ## OLS-based CP just uses the absolute value of the residuals.
+    return(abs(data$Y - pred))
+  }
+
+  ## Calculate threshold based on validation set and calculate coverage on test set
+  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  
+  pred.test <- predict(model, newdata = data.test)
+
+  ## Estimate coverage as test values within threshold
+  coverage <- local.score(data.test, pred.test) <= threshold
+
+  leng <- rep(2 * threshold, nrow(data.test))
+
+  return(list(coverage = coverage, leng = leng))
+}
+
+
