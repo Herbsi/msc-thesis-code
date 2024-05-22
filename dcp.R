@@ -1,3 +1,4 @@
+library(isodistrreg)
 library(quantreg)
 
 dcp <- function(type, formula, data, split, alpha = 0.1) {
@@ -74,3 +75,33 @@ dcp_leng.rqs <- function(fit, data) {
   leng[which(leng == -Inf)] <- NA
   leng 
 }
+### IDR ------------------------------------------------------------------------
+
+dcp_fit.idrfit <- function(formula, data) {
+  ## NOTE <2024-05-22 Wed> Extracting the formula could be more robust.
+  y <- data[[formula[[2]]]]
+  x <- data[, formula[[3]]]
+  idr(y, x)
+}
+
+dcp_predict.idrfit <- function(fit, data) {
+  predict(fit, data)
+}
+
+dcp_score.idrfit <- function(fit, data) {
+  ## HACK <2024-05-22 Wed> `$Y' is hard-coded here,
+  ## but the IDR package is not the most robust.
+  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
+}
+
+dcp_leng.idrfit <- function(fit, data) {
+  leng <- dcp_predict(fit, data) |>
+    map_dbl(~ {
+      tmp <- .x$points[abs(.x$cdf - 0.5) <= fit$threshold]
+      max(tmp) - min(tmp)
+    }
+    )
+  leng[which(leng == -Inf)] <- NA
+  leng
+}
+
