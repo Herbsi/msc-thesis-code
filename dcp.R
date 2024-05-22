@@ -34,8 +34,8 @@ dcp_fit <- function(type, formula, data) {
     "QR" = dcp_fit.rqs(formula, data),
     "DR" = dcp_fit.dr(formula, data),
     "QR*" = dcp_fit.rq_opt(formula, data),
-    "IDR" = dcp_fit.idr(formula, data),
-    "CP-OLS" = dcp_fit.cp_ols(formula, data),
+    "IDR" = dcp_fit.idrfit(formula, data),
+    "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
   )
 }
@@ -103,5 +103,51 @@ dcp_leng.idrfit <- function(fit, data) {
     )
   leng[which(leng == -Inf)] <- NA
   leng
+}
+
+
+### CP-OLS ---------------------------------------------------------------------
+
+dcp_fit.lm <- function(formula, data) {
+  lm(formula, data)
+}
+
+dcp_predict.lm <- function(fit, data) {
+  predict(fit, data)
+}
+
+dcp_score.lm <- function(fit, data) {
+  y_name <- names(fit$model)[1]
+  abs(data[[y_name]] - predict(fit, data))
+}
+
+dcp_leng.lm <- function(fit, data) {
+  rep(2 * fit$threshold, nrow(data))
+}
+
+### CP-loc ---------------------------------------------------------------------
+
+dcp_fit.cp_loc <- function(formula, data) {
+  model_reg <- lm(formula, data = data)
+  model_sig <- lm(abs(residuals(model_reg)) ~ X, data = data)
+
+  model <- list(reg = model_reg, sig = model_sig)
+  class(model) <- "cp_loc" # I have succumb to the dark side---they had cookies.
+  model # Is a list of two `lm's
+}
+
+dcp_predict.cp_loc <- function(fit, data) {
+  list(reg = predict(fit$reg, data), sig = predict(fit$sig, data))
+}
+
+dcp_score.cp_loc <- function(fit, data) {
+  y_name <- names(fit$reg$model)[1]
+  pred <- dcp_predict(fit, data)
+  abs(pred$reg - data[[y_name]]) / abs(pred$sig)
+}
+
+dcp_leng.cp_loc <- function(fit, data) {
+  pred <- dcp_predict(fit, data)
+  2 * pred$sig * fit$threshold
 }
 
