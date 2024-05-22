@@ -5,34 +5,14 @@
 library(isodistrreg)
 library(quantreg)
 library(purrr)
+library(tibble)
 
-### Auxiliary functions
-
-train.valid.split <- function(data) {
-  ## Split data evenly `(X, Y)' into training set `(X0, Y0)' and calibration set `(X1, Y1)'
-  ## TODO <2024-05-20 Mo> if `length(Y)' is odd, `(X0, Y0)' is one shorter than `(X1, Y1)'
-  n <- nrow(data)
-
-  return(
-    list(data.train = data[1:floor(n/2), ],
-      data.valid = data[(floor(n/2)+1):n, ] 
-    )
-  )
-}
-
-
-dcp.score <- function(ranks) { return(abs(ranks - 0.5)) }
-
-dcp.threshold <- function(scores, alpha) {
-  return(sort(scores)[ceiling((1 - alpha) * (1 + length(scores)))])
-}
-
-
-### Distributional regression functions
+source("lib.R")
 
 tau = seq(0.001, 0.999, length = 200)
 
-#### Quantile regression
+### Quantile regression
+
 dcp.qr <- function(data.train, data.valid, data.test, alpha) {
   ## Fit QR model
   ## Note that rq is able to fit multiple values of `tau' at once.
@@ -42,11 +22,11 @@ dcp.qr <- function(data.train, data.valid, data.test, alpha) {
   local.score <- function(data, pred = predict(model, newdata = data)) {
     ## We calculate the rank as fraction of quantiles below the predicted values
     ## Hence rowMeans(...)
-    return(dcp.score(rowMeans(pred <= data$Y)))
+    return(dcp_score(rowMeans(pred <= data$Y)))
   }
 
   ## Calculate threshold based on validation set and calculate coverage on test set
-  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  threshold <- dcp_threshold(local.score(data.valid), alpha)
   
   pred.test <- predict(model, newdata = data.test)
 
@@ -55,18 +35,18 @@ dcp.qr <- function(data.train, data.valid, data.test, alpha) {
 
   ## Calculate length of interval(s)
   leng <- apply(
-    pred.test[, dcp.score(tau) <= threshold], # TODO <2024-05-20 Mo> I don't understand why we use these columns yet.
+    pred.test[, dcp_score(tau) <= threshold], # TODO <2024-05-20 Mo> I don't understand why we use these columns yet.
     1,
     \(row) max(row) - min(row)
   )
 
   leng[which(leng == -Inf)] <- NA
 
-  return(list(coverage = coverage, leng = leng))
+  return(tibble(coverage = coverage, leng = leng))
 }
 
 
-#### DCP-QR*
+### DCP-QR*
 dcp.opt <- function(data.train, data.valid, data.test, alpha){
   Y0 <- data.train$Y
   X0 <- as.matrix(data.train$X)
@@ -121,12 +101,13 @@ dcp.opt <- function(data.train, data.valid, data.test, alpha){
   
   leng.opt[which(leng.opt==-Inf)] <- NA
   
-  return(list(coverage=cov.opt, leng=leng.opt))  
+  return(tibble(coverage=cov.opt, leng=leng.opt))  
   ## END PLAGARISM
 }
 
 
-#### GLM-based DR
+### GLM-based DR
+
 dcp.dr <- function(data.train, data.valid, data.test, alpha) {
   ys <- quantile(unique(c(data.train$Y, data.valid$Y)), tau)
   ## We perform DR manually, by fitting a separate GLM for various values of y
@@ -146,13 +127,13 @@ dcp.dr <- function(data.train, data.valid, data.test, alpha) {
         y = pred[i, ],
         xout = data[i, "Y"],
         rule=2)$y |>
-              dcp.score()
+              dcp_score()
     }
     return(score)
   }
 
   ## Calculate threshold based on validation set and calculate coverage on test set
-  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  threshold <- dcp_threshold(local.score(data.valid), alpha)
   
   pred.test <- local.predict(data.test)
 
@@ -163,27 +144,27 @@ dcp.dr <- function(data.train, data.valid, data.test, alpha) {
   ## NOTE <2024-05-20 Mo> Calculating the length of the interval remains a mystery.
   leng <- rep(NA, nrow(data.test))
   for (i in 1:nrow(data.test)) {
-    tmp <- ys[dcp.score(pred.test[i, ]) <= threshold]
+    tmp <- ys[dcp_score(pred.test[i, ]) <= threshold]
     leng[i] <- max(tmp) - min(tmp)
   }
 
   leng[which(leng == -Inf)] <- NA
 
-  return(list(coverage = coverage, leng = leng))
+  return(tibble(coverage = coverage, leng = leng))
 }
 
 
-#### DCP-IDR
+### DCP-IDR
 
 dcp.idr <- function(data.train, data.valid, data.test, alpha) {
   fm <- idr(data.train$Y, data.train[, "X"])
 
   local.score <- function(data, pred = predict(fm, data[, "X"])) {
-    return(dcp.score(pit(pred, data$Y)))
+    return(dcp_score(pit(pred, data$Y)))
   }
   
   ## Scores on calibration set
-  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  threshold <- dcp_threshold(local.score(data.valid), alpha)
 
   ## Scores on test set
   pred.test <- predict(fm, data.test[, "X"])
@@ -197,7 +178,7 @@ dcp.idr <- function(data.train, data.valid, data.test, alpha) {
     ys.i <- quantile(unique(c(data.train$Y, data.valid$Y)), seq(0.001, 0.999, length=nrow(pred.test[[i]])))
     
     indices <- as_tibble(pred.test[[i]]) |>
-      mutate(indices = dcp.score(cdf) <= threshold, .keep = "unused") |>
+      mutate(indices = dcp_score(cdf) <= threshold, .keep = "unused") |>
       pull(indices)
 
     tmp <- ys.i[indices]
@@ -206,11 +187,11 @@ dcp.idr <- function(data.train, data.valid, data.test, alpha) {
 
   leng[which(leng == -Inf)] <- NA
   
-  return(list(coverage = coverage, leng = leng))
+  return(tibble(coverage = coverage, leng = leng))
 }
 
 
-#### CP-OLS
+### CP-OLS
 
 cp.ols <- function(data.train, data.valid, data.test, alpha) {
   model <- lm(Y ~ X, data = data.train)
@@ -221,7 +202,7 @@ cp.ols <- function(data.train, data.valid, data.test, alpha) {
   }
 
   ## Calculate threshold based on validation set and calculate coverage on test set
-  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  threshold <- dcp_threshold(local.score(data.valid), alpha)
   
   pred.test <- predict(model, newdata = data.test)
 
@@ -230,11 +211,11 @@ cp.ols <- function(data.train, data.valid, data.test, alpha) {
 
   leng <- rep(2 * threshold, nrow(data.test))
 
-  return(list(coverage = coverage, leng = leng))
+  return(tibble(coverage = coverage, leng = leng))
 }
 
 
-#### CP-loc
+### CP-loc
 ## NOTE <2024-05-21 Tue> I don't know what this method does yet.
 
 cp.loc <- function(data.train, data.valid, data.test, alpha) {
@@ -246,7 +227,7 @@ cp.loc <- function(data.train, data.valid, data.test, alpha) {
     return(abs(data$Y - pred) / abs(predict(model.sig, newdata = data)))
   }
 
-  threshold <- dcp.threshold(local.score(data.valid), alpha)
+  threshold <- dcp_threshold(local.score(data.valid), alpha)
 
   lb <- predict(model.reg, newdata = data.test) - threshold * abs(predict(model.sig, data.test))
   ub <- predict(model.reg, newdata = data.test) + threshold * abs(predict(model.sig, data.test))
@@ -254,5 +235,5 @@ cp.loc <- function(data.train, data.valid, data.test, alpha) {
   coverage <- data.test$Y <= ub & data.test$Y >= lb
   leng <- ub - lb
 
-  return(list(coverage = coverage, leng = leng))
+  return(tibble(coverage = coverage, leng = leng))
 }

@@ -1,5 +1,3 @@
-################################################################################
-
 ## Preliminaries
 set.seed(42)
 
@@ -7,21 +5,12 @@ set.seed(42)
 library(dplyr)
 library(tibble)
 
+source("lib.R")
 ## Methods
 source("methods.R")
-## TODO <2024-05-21 Tue> `cqr' is missing
-## NODE <2024-05-21 Tue> I wanted to something clever with `deparse(substitute())', but creating a list(dcp.qr, …) does not save the names.
-## So I hard-coded the names here and loop over `names(methods)' below
-methods <- list(dcp.qr = dcp.qr,
-  dcp.opt = dcp.opt,
-  dcp.dr = dcp.dr,
-  cp.ols = cp.ols,
-  cp.loc = cp.loc,
-  dcp.idr = dcp.idr)
 
 
-################################################################################
-### Data
+### Data -----------------------------------------------------------------------
 ## Source: Kenneth R. French data library
 ## Accessed: August 17, 2021
 ## URL: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html
@@ -36,13 +25,18 @@ for (i in 23:nrow(data)) {
 
 data <- data[23:nrow(data), c("X", "Y")]
 
-################################################################################
-### Analysis
-################################################################################
+### Analysis -------------------------------------------------------------------
 
 alpha <- 0.1
 
 n.ho <- floor(nrow(data)*0.10)
+
+## TODO <2024-05-21 Tue> `cqr' is missing.
+## NOTE <2024-05-22 Wed> `1:6' is hard-coded.
+results <- tibble(name = c("dcp.qr", "dcp.opt", "dcp.dr", "cp.ols", "cp.loc", "dcp.idr"),
+  fn = list(dcp.qr, dcp.opt, dcp.dr, cp.ols, cp.loc, dcp.idr),
+  result = map(1:6, ~ tibble(coverage = NULL, leng = NULL))
+)
 
 ## We do five runs.
 ## Consider data as 10 consecutive blocks of size ≈ n/10
@@ -50,7 +44,6 @@ n.ho <- floor(nrow(data)*0.10)
 ## Second run: `cp' uses blocks 2–6; test uses block 7.
 ## …
 ## Fifth run:  `cp' uses blocks 5–9; test uses block 10.
-results <- list()
 for (r in 1:5) {
   ## Define training and holdout samples.
   ind.cp <- ((r - 1)*n.ho + 1):(floor(nrow(data) * 0.5) + (r - 1) * n.ho + 1)
@@ -59,29 +52,17 @@ for (r in 1:5) {
   print(c(min(ind.cp), max(ind.cp)))
   print(c(min(ind.test), max(ind.test)))
 
-  data.train <- train.valid.split(data[ind.cp, ])[["data.train"]]
-  data.valid <- train.valid.split(data[ind.cp, ])[["data.valid"]]
+  data.train <- train_valid_split(data[ind.cp, ])[["data.train"]]
+  data.valid <- train_valid_split(data[ind.cp, ])[["data.valid"]]
   data.test <- data[ind.test, ]
 
-  for (m in names(methods)) {
-    ## Call the method.
-    local.res <- methods[[m]](data.train, data.valid, data.test, alpha)
-
-    ## Obtain previous results.
-    local.coverage <- results[[m]][["coverage"]]
-    local.leng <- results[[m]][["leng"]]
-
-    results[[m]][["coverage"]] <- c(local.coverage, local.res$coverage)
-    results[[m]][["leng"]] <- c(local.leng, local.res$leng)
-  }
+  results <- results |>
+    mutate(result = {
+      ## NOTE <2024-05-21 Tue> `fn' is a one-element list with a function for some reason; extract it with `[[1]]'
+      map(result, ~ bind_rows(.x, fn[[1]](data.train, data.valid, data.test, alpha))
+      )
+    })
 }
 
-print("Mean coverage:")
-## TODO <2024-05-21 Tue> Pretty print
-print(lapply(results), \(m) mean(m[["coverage"]]))
-print("Mean interval length:")
-print(lapply(results), \(m) mean(m[["leng"]]))
+### Plotting -------------------------------------------------------------------
 
-################################################################################
-### Plotting
-################################################################################
