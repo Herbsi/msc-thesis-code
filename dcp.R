@@ -51,7 +51,7 @@ dcp_leng <- function(fit, data) {
   UseMethod("dcp_leng")
 }
 
-### QR ---------------------------------------------------------------
+### QR -------------------------------------------------------------------------
 dcp_fit.rqs <- function(formula, data) {
   rq(formula, tau = seq(0.001, 0.999, length = 200) , data = data)
 }
