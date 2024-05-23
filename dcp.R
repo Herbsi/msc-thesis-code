@@ -10,7 +10,10 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     print("Data split.")
     
     ## Fit model
-    fit <- dcp_fit(type, formula, data_train)
+    tau <- seq(0.001, 0.999, length = 200)
+    ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
+    
+    fit <- dcp_fit(type, formula, data_train, tau = tau, ys = ys)
     print("Model fitted.")
 
     ## Calibrate model
@@ -29,10 +32,11 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
   })
 }    
 
-dcp_fit <- function(type, formula, data) {
+dcp_fit <- function(type, formula, data, ...) {
+  args <- list(...)
   switch(type,
-    "QR" = dcp_fit.rqs(formula, data),
-    "DR" = dcp_fit.dr(formula, data),
+    "QR" = dcp_fit.rqs(formula, data, args$tau),
+    "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data),
     "IDR" = dcp_fit.idrfit(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
@@ -52,8 +56,8 @@ dcp_leng <- function(fit, data) {
 }
 
 ### QR -------------------------------------------------------------------------
-dcp_fit.rqs <- function(formula, data) {
-  rq(formula, tau = seq(0.001, 0.999, length = 200) , data = data)
+dcp_fit.rqs <- function(formula, data, tau) {
+  rq(formula, tau = tau, data = data)
 }
 
 dcp_predict.rqs <- function(fit, data) {
@@ -75,6 +79,47 @@ dcp_leng.rqs <- function(fit, data) {
   leng[which(leng == -Inf)] <- NA
   leng 
 }
+
+
+### GLM-DR ---------------------------------------------------------------------
+
+dcp_fit.dr <- function(formula, data, ys) {
+  ## FIXME <2024-05-23 Thu> This does not use validation Ys
+  y <- data[[formula[[2]]]]
+  x <- cbind(1, data[, formula[[3]]])
+  ## TODO <2024-05-23 Thu> Use something other than `sapply'
+  beta <- sapply(ys,
+    \(the_y) glm.fit(x, (y <= the_y), family = binomial(link = "logit"))$coefficients)
+  fit <- list(beta = beta, ys = ys)
+  class(fit) <- "dr"
+  fit
+}
+
+dcp_predict.dr <- function(fit, data) {
+  ## HACK <2024-05-23 Thu> Hard-coded `$X' here
+  plogis(as.matrix(cbind(1, data[, "X"])) %*% fit$beta)
+}
+
+dcp_score.dr <- function(fit, data) {
+  pred <- dcp_predict(fit, data)
+  ## HACK <2024-05-23 Thu> Hard-coded `$Y' here
+  imap_dbl(data$Y,
+    \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y, rule = 2)$y
+    - 0.5) |>
+    abs()
+}
+
+dcp_leng.dr <- function(fit, data) {
+  pred <- dcp_predict(fit, data)
+  leng <- rep(NA, nrow(data))
+  for (i in 1:nrow(data)) {
+    tmp <- fit$ys[abs(pred[i, ] - 0.5) <= fit$threshold]
+    leng[i] <- max(tmp) - min(tmp)
+  }
+  leng[which(leng == -Inf)] <- NA
+  leng
+}
+
 ### IDR ------------------------------------------------------------------------
 
 dcp_fit.idrfit <- function(formula, data) {
