@@ -30,7 +30,29 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
     data.frame(coverage = coverage, leng = leng)
   })
-}    
+}
+
+dcp_qr <- function(formula, data, split, alpha = 0.1) {
+  dcp("QR", formula, data, split, alpha)
+}
+
+dcp_dr <- function(formula, data, split, alpha = 0.1) {
+  dcp("DR", formula, data, split, alpha)
+}
+
+dcp_idr <- function(formula, data, split, alpha = 0.1) {
+  dcp("IDR", formula, data, split, alpha)
+}
+
+dcp_cp_ols <- function(formula, data, split, alpha = 0.1) {
+  dcp("CP-OLS", formula, data, split, alpha)
+}
+
+dcp_cp_loc <- function(formula, data, split, alpha = 0.1) {
+  dcp("CP-LOC", formula, data, split, alpha)
+}
+
+### Fit ------------------------------------------------------------------------
 
 dcp_fit <- function(type, formula, data, ...) {
   args <- list(...)
