@@ -3,30 +3,25 @@ library(quantreg)
 
 dcp <- function(type, formula, data, split, alpha = 0.1) {
   ## TODO <2024-05-22 Wed> Agree on interface for train-valid-test split
+  ## TODO <2024-05-24 Fri> Add verbosity via global option
   with(split(data), {
     data_train <- train
     data_valid <- valid
     data_test <- test
-    print("Data split.")
     
     ## Fit model
     tau <- seq(0.001, 0.999, length = 200)
     ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
     
     fit <- dcp_fit(type, formula, data_train, tau = tau, ys = ys)
-    print("Model fitted.")
 
     ## Calibrate model
     scores_valid <- dcp_score(fit, data_valid)
-    print("Scores calculated.")
     threshold <- sort(scores_valid)[ceiling((1 - alpha) * (1 + length(scores_valid)))]
-    print("Threshold calculated.")
 
     ## Estimate coverage
     coverage <- dcp_score(fit, data_test) <= threshold
-    print("Coverage estimated.")
     leng <- dcp_leng(fit, data_test, threshold)
-    print("Interval length estimated.")
 
     data.frame(coverage = coverage, leng = leng)
   })

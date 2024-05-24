@@ -4,15 +4,17 @@ set.seed(42)
 ## Packages
 library(dplyr)
 library(ggplot2)
+library(purrr)
 library(stringr)
 library(tibble)
+library(tidyr)
 
 library(tikzDevice)
 options(tikzDefaultEngine="luatex")
 
 source("lib.R")
-## Methods
-source("methods.R")
+## DCP Methods
+source("dcp.R")
 
 
 ### Data -----------------------------------------------------------------------
@@ -34,13 +36,14 @@ data <- data[23:nrow(data), c("X", "Y")] |> mutate(test_flag = FALSE)
 
 alpha <- 0.1
 
-n.ho <- floor(nrow(data)*0.10)
+n_ho <- floor(nrow(data)*0.10)
 
 ## TODO <2024-05-21 Tue> `cqr' is missing.
+## TODO <2024-05-24 Fri> `qr-*' is missing 
 ## NOTE <2024-05-22 Wed> `1:6' is hard-coded.
-analysis_tibble <- tibble(name = c("dcp-qr", "dcp-opt", "dcp-dr", "cp-ols", "cp-loc", "dcp-idr"),
-  fn = list(dcp.qr, dcp.opt, dcp.dr, cp.ols, cp.loc, dcp.idr),
-  results = map(1:6, ~ tibble(coverage = NULL, leng = NULL))
+analysis_tibble <- tibble(name = c("dcp-qr",  "dcp-dr", "dcp-idr", "cp-ols", "cp-loc"),
+  fn = list(dcp_qr, dcp_dr, dcp_idr, dcp_cp_ols, dcp_cp_loc),
+  results = map(1:5, ~ tibble(coverage = NULL, leng = NULL))
 )
 
 ## We do five runs.
@@ -50,21 +53,27 @@ analysis_tibble <- tibble(name = c("dcp-qr", "dcp-opt", "dcp-dr", "cp-ols", "cp-
 ## …
 ## Fifth run:  `cp' uses blocks 5–9; test uses block 10.
 for (r in 1:5) {
-  ## Define training and holdout samples.
-  ind.cp <- ((r - 1)*n.ho + 1):(floor(nrow(data) * 0.5) + (r - 1) * n.ho + 1)
-  ind.test <- (max(ind.cp)+1):(max(ind.cp)+n.ho)
+  ## Define training, calibration, and holdout samples.
+  ind_train <- ((r - 1)*n_ho + 1):(floor(nrow(data) * .25) + (r - 1) * n_ho + 1)
+  ind_valid <- (max(ind_train)+1):(floor(nrow(data) * .50) + (r - 1) * n_ho + 1)
+  ind_test <- (max(ind_valid)+1):(max(ind_valid)+n_ho)
 
-  print(c(min(ind.cp), max(ind.cp)))
-  print(c(min(ind.test), max(ind.test)))
+  split <- function(data) {
+    list(train = data[ind_train, , drop = FALSE],
+      valid = data[ind_valid, , drop = FALSE],
+      test = data[ind_test, , drop = FALSE]
+    )
+  }
+  
+  print(c(min(ind_train), max(ind_train)))
+  print(c(min(ind_valid), max(ind_valid)))
+  print(c(min(ind_test), max(ind_test)))
 
-  data.train <- train_valid_split(data[ind.cp, ])[["data.train"]]
-  data.valid <- train_valid_split(data[ind.cp, ])[["data.valid"]]
-  data.test <- data[ind.test, ]
-  data[ind.test, "test_flag"] <- TRUE
+  data[ind_test, "test_flag"] <- TRUE
 
   analysis_tibble <- analysis_tibble |>
     mutate(results = {
-      map2(fn, results, ~ bind_rows(.y, .x(data.train, data.valid, data.test, alpha))
+      map2(fn, results, ~ bind_rows(.y, .x(Y ~ X, data, split, alpha))
       )
     })
 }
@@ -87,19 +96,19 @@ plot_tibble <- analysis_tibble[, c("name", "averages")] |>
 tikz(file = "../tex/images/tikz/coverage.tex",
   width = 418.2555 / 72.27) # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
 print(
-ggplot(plot_tibble, aes(x = bin, y = coverage, color = as.factor(name), group = name)) +
-  geom_point(aes(shape = as.factor(name)), size = 3) +
-  geom_line() +
-  xlab("Bin") +
-  ylab("Coverage") +
-  labs(color = "Method", shape = "Method") +
-  theme_minimal()
+  ggplot(plot_tibble, aes(x = bin, y = coverage, color = as.factor(name), group = name)) +
+    geom_point(aes(shape = as.factor(name)), size = 3) +
+    geom_line() +
+    xlab("Bin") +
+    ylab("Coverage") +
+    labs(color = "Method", shape = "Method") +
+    theme_minimal()
 )
 dev.off()
 ## END COPY-PASTE
 
 tikz(file = "../tex/images/tikz/length.tex",
-    width = 418.2555 / 72.27) # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
+  width = 418.2555 / 72.27) # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
 ggplot(plot_tibble, aes(x = bin, y = leng, color = as.factor(name), group = name)) +
   geom_point(aes(shape = as.factor(name)), size = 3) +
   geom_line() +
