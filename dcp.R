@@ -19,13 +19,13 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     ## Calibrate model
     scores_valid <- dcp_score(fit, data_valid)
     print("Scores calculated.")
-    fit$threshold <- sort(scores_valid)[ceiling((1 - alpha) * (1 + length(scores_valid)))]
+    threshold <- sort(scores_valid)[ceiling((1 - alpha) * (1 + length(scores_valid)))]
     print("Threshold calculated.")
 
     ## Estimate coverage
-    coverage <- dcp_score(fit, data_test) <= fit$threshold
+    coverage <- dcp_score(fit, data_test) <= threshold
     print("Coverage estimated.")
-    leng <- dcp_leng(fit, data_test)
+    leng <- dcp_leng(fit, data_test, threshold)
     print("Interval length estimated.")
 
     data.frame(coverage = coverage, leng = leng)
@@ -51,11 +51,12 @@ dcp_predict <- function(fit, data) {
 dcp_score <- function(fit, data) {
   UseMethod("dcp_score")
 }
-dcp_leng <- function(fit, data) {
+dcp_leng <- function(fit, data, threshold) {
   UseMethod("dcp_leng")
 }
 
 ### QR -------------------------------------------------------------------------
+
 dcp_fit.rqs <- function(formula, data, tau) {
   rq(formula, tau = tau, data = data)
 }
@@ -70,9 +71,9 @@ dcp_score.rqs <- function(fit, data) {
   abs(rowMeans(dcp_predict(fit, data) <= data[[names(fit$model)[1]]]) - 0.5)
 }
 
-dcp_leng.rqs <- function(fit, data) {
+dcp_leng.rqs <- function(fit, data, threshold) {
   ## Assumes `fit' has its `threshold'
-  leng <- apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= fit$threshold)],
+  leng <- apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)],
     1,
     \(row) max(row) - min(row)
   )
@@ -109,11 +110,11 @@ dcp_score.dr <- function(fit, data) {
     abs()
 }
 
-dcp_leng.dr <- function(fit, data) {
+dcp_leng.dr <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
   leng <- rep(NA, nrow(data))
   for (i in 1:nrow(data)) {
-    tmp <- fit$ys[abs(pred[i, ] - 0.5) <= fit$threshold]
+    tmp <- fit$ys[abs(pred[i, ] - 0.5) <= threshold]
     leng[i] <- max(tmp) - min(tmp)
   }
   leng[which(leng == -Inf)] <- NA
@@ -139,10 +140,10 @@ dcp_score.idrfit <- function(fit, data) {
   abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
 }
 
-dcp_leng.idrfit <- function(fit, data) {
+dcp_leng.idrfit <- function(fit, data, threshold) {
   leng <- dcp_predict(fit, data) |>
     map_dbl(~ {
-      tmp <- .x$points[abs(.x$cdf - 0.5) <= fit$threshold]
+      tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
       max(tmp) - min(tmp)
     }
     )
@@ -166,8 +167,8 @@ dcp_score.lm <- function(fit, data) {
   abs(data[[y_name]] - predict(fit, data))
 }
 
-dcp_leng.lm <- function(fit, data) {
-  rep(2 * fit$threshold, nrow(data))
+dcp_leng.lm <- function(fit, data, threshold) {
+  rep(2 * threshold, nrow(data))
 }
 
 ### CP-loc ---------------------------------------------------------------------
@@ -191,8 +192,8 @@ dcp_score.cp_loc <- function(fit, data) {
   abs(pred$reg - data[[y_name]]) / abs(pred$sig)
 }
 
-dcp_leng.cp_loc <- function(fit, data) {
+dcp_leng.cp_loc <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
-  2 * pred$sig * fit$threshold
+  2 * pred$sig * threshold
 }
 
