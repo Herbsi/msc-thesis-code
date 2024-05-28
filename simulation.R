@@ -10,7 +10,6 @@ library(tikzDevice)
 options(tikzDefaultEngine="luatex")
 
 source("lib.R")
-source("dcp.R")
 
 
 ## Setup -----------------------------------------------------------------------
@@ -53,18 +52,7 @@ data_tibble <- tibble(X = runif(n, 0, 10),
 
 ## Analysis -------------------------------------------------------------------
 
-alpha <- 0.1
-
-analysis_tibble <- tibble(name = c("dcp-qr",  "dcp-dr", "dcp-idr", "dcp-idrbag", "cp-ols", "cp-loc"),
-  fn = list(dcp_qr, dcp_dr, dcp_idr, dcp_idrbag, dcp_cp_ols, dcp_cp_loc),
-  results = map(seq_along(name), ~ tibble(coverage = NULL, leng = NULL))
-)
-
-## Perform Analysis
-analysis_tibble <- analysis_tibble |>
-  mutate(results = {
-    map(fn, ~ .x(Y ~ X, data_tibble, split, alpha))
-  })
+analysis_tibble <- analyse(data_tibble, alpha = 0.1)
 
 
 ## Plotting --------------------------------------------------------------------
