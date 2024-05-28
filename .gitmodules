@@ -4,3 +4,6 @@
 [submodule "external/isodistrreg"]
 	path = external/isodistrreg
 	url = ssh://git@github.com/AlexanderHenzi/isodistrreg
+[submodule "external/cqr"]
+	path = external/cqr
+	url = ssh://git@github.com/yromano/cqr
