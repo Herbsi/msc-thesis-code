@@ -1,14 +1,16 @@
 ## Packages
 library(dplyr)
 library(ggplot2)
+library(purrr)
 library(stringr)
 library(tibble)
+library(tidyr)
 
 library(tikzDevice)
 options(tikzDefaultEngine="luatex")
 
 source("lib.R")
-source("methods.R")
+source("dcp.R")
 
 
 ## Setup -----------------------------------------------------------------------
@@ -19,6 +21,13 @@ n <- n_train + n_valid + n_test
 ind_train <- 1:n_train
 ind_valid <- (n_train+1):(n_train+n_valid)
 ind_test <- (n_train+n_valid+1):n
+
+split <- function(data) {
+  list(train = data[ind_train, , drop = FALSE],
+    valid = data[ind_valid, , drop = FALSE],
+    test = data[ind_test, , drop = FALSE]
+  )
+}
 
 model <- function(type) {
   force(type)
@@ -46,21 +55,21 @@ data_tibble <- tibble(X = runif(n, 0, 10),
 
 alpha <- 0.1
 
-analysis_tibble <- tibble(name = c("dcp-qr", "dcp-opt", "dcp-dr", "cp-ols", "cp-loc", "dcp-idr"),
-  fn = list(dcp.qr, dcp.opt, dcp.dr, cp.ols, cp.loc, dcp.idr),
-  results = map(1:6, ~ tibble(coverage = NULL, leng = NULL))
+analysis_tibble <- tibble(name = c("dcp-qr",  "dcp-dr", "dcp-idr", "dcp-idrbag", "cp-ols", "cp-loc"),
+  fn = list(dcp_qr, dcp_dr, dcp_idr, dcp_idrbag, dcp_cp_ols, dcp_cp_loc),
+  results = map(seq_along(name), ~ tibble(coverage = NULL, leng = NULL))
 )
 
 ## Perform Analysis
 analysis_tibble <- analysis_tibble |>
   mutate(results = {
-    map(fn, ~ .x(data[ind_train, ], data[ind_valid, ], data[ind_test, ], alpha))
+    map(fn, ~ .x(Y ~ X, data_tibble, split, alpha))
   })
 
 
 ## Plotting --------------------------------------------------------------------
 ## Bin analysis-data into quantiles based on test data
-X.test <- data[ind_test, ] |> pull(X)
+X.test <- data_tibble[ind_test, ] |> pull(X)
 ## TODO <2024-05-22 Wed> Currently, the final bin is odd.
 analysis_tibble <- analysis_tibble |>
   mutate(results.binned = map(results, ~ bin(.x, X.test, 20) |> filter(bin < 19))) |>
