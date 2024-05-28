@@ -40,10 +40,9 @@ n_ho <- floor(nrow(data)*0.10)
 
 ## TODO <2024-05-21 Tue> `cqr' is missing.
 ## TODO <2024-05-24 Fri> `qr-*' is missing 
-## NOTE <2024-05-22 Wed> `1:6' is hard-coded.
 analysis_tibble <- tibble(name = c("dcp-qr",  "dcp-dr", "dcp-idr", "cp-ols", "cp-loc"),
   fn = list(dcp_qr, dcp_dr, dcp_idr, dcp_cp_ols, dcp_cp_loc),
-  results = map(1:5, ~ tibble(coverage = NULL, leng = NULL))
+  results = map(seq_along(name), ~ tibble(coverage = NULL, leng = NULL))
 )
 
 ## We do five runs.

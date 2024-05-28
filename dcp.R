@@ -4,6 +4,8 @@ library(quantreg)
 dcp <- function(type, formula, data, split, alpha = 0.1) {
   ## TODO <2024-05-22 Wed> Agree on interface for train-valid-test split
   ## TODO <2024-05-24 Fri> Add verbosity via global option
+  ## TODO <2024-05-24 Fri> Keep coverage and leng together with the test samples
+  ## Nothing scrambles the data, so we can (and do in the scripts) recover the test points from knowing `split', but it'd be cleaner to keep track of the points in a different way.
   with(split(data), {
     data_train <- train
     data_valid <- valid
@@ -39,6 +41,10 @@ dcp_idr <- function(formula, data, split, alpha = 0.1) {
   dcp("IDR", formula, data, split, alpha)
 }
 
+dcp_idrbag <- function(formula, data, split, alpha = 0.1) {
+  dcp("IDR-BAG", formula, data, split, alpha)
+}
+
 dcp_cp_ols <- function(formula, data, split, alpha = 0.1) {
   dcp("CP-OLS", formula, data, split, alpha)
 }
@@ -56,6 +62,7 @@ dcp_fit <- function(type, formula, data, ...) {
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data),
     "IDR" = dcp_fit.idrfit(formula, data),
+    "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
   )
@@ -97,6 +104,9 @@ dcp_leng.rqs <- function(fit, data, threshold) {
   leng[which(leng == -Inf)] <- NA
   leng 
 }
+
+
+### QR* ------------------------------------------------------------------------
 
 
 ### GLM-DR ---------------------------------------------------------------------
@@ -158,6 +168,42 @@ dcp_score.idrfit <- function(fit, data) {
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
+  leng <- dcp_predict(fit, data) |>
+    map_dbl(~ {
+      tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
+      max(tmp) - min(tmp)
+    }
+    )
+  leng[which(leng == -Inf)] <- NA
+  leng
+}
+
+### IDR-BAG --------------------------------------------------------------------
+
+dcp_fit.idrbag <- function(formula, data) {
+  y <- data[[formula[[2]]]]
+  x <- data[, formula[[3]]]
+  fit <- function(data) {
+    ## NOTE <2024-05-28 Tue>: Used arbitrary values for `b' and `p' here.
+    ## NOTE <2024-05-28 Tue>: Chose small values; otherwise, it takes forever.
+    ## Also didn't see much improvement
+    idrbag(y, x, newdata = data, b = 5, p = 0.8)
+  }
+  class(fit) <- "idrbag"
+  fit
+}
+
+dcp_predict.idrbag <- function(fit, data) {
+  fit(data)
+}
+
+dcp_score.idrbag <- function(fit, data) {
+  ## HACK <2024-05-28 Tue> `$Y' is hard-coded here,
+  ## but the IDR package is not the most robust.
+  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
+}
+
+dcp_leng.idrbag <- function(fit, data, threshold) {
   leng <- dcp_predict(fit, data) |>
     map_dbl(~ {
       tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
