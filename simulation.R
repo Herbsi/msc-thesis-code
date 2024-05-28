@@ -35,10 +35,12 @@ type <- "S"
 ## Generate data
 set.seed(42)
 data_tibble <- tibble(X = runif(n, 0, 10),
-  Y = model(type)(X)) |>  
+  Y = model(type)(X)
+) |>  
   mutate( # Add noise to training data.
     X = X + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train)),
-    Y = Y + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train)))
+    Y = Y + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train))
+  )
 
 ## Analysis -------------------------------------------------------------------
 

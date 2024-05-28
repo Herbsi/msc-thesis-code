@@ -94,7 +94,8 @@ plot_tibble <- analysis_tibble[, c("name", "averages")] |>
 ## Plot coverage
 ## BEGIN COPY-PASTE
 tikz(file = "../tex/images/tikz/coverage.tex",
-  width = 418.2555 / 72.27) # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
+  width = 418.2555 / 72.27 # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
+) 
 print(
   ggplot(plot_tibble, aes(x = bin, y = coverage, color = as.factor(name), group = name)) +
     geom_point(aes(shape = as.factor(name)), size = 3) +
@@ -108,7 +109,8 @@ dev.off()
 ## END COPY-PASTE
 
 tikz(file = "../tex/images/tikz/length.tex",
-  width = 418.2555 / 72.27) # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
+  width = 418.2555 / 72.27 # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
+) 
 ggplot(plot_tibble, aes(x = bin, y = leng, color = as.factor(name), group = name)) +
   geom_point(aes(shape = as.factor(name)), size = 3) +
   geom_line() +
