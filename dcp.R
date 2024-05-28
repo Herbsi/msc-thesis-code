@@ -24,8 +24,13 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     ## Estimate coverage
     coverage <- dcp_score(fit, data_test) <= threshold
     leng <- dcp_leng(fit, data_test, threshold)
-
-    data.frame(coverage = coverage, leng = leng)
+    
+    ## Estimate conditional coverage as output of a logistic regression
+    conditional_glm <- glm(coverage ~ X, family = binomial(link = "logit"), data = data_test)
+    
+    list(coverage = coverage,
+      leng = leng,
+      conditional_glm = conditional_glm)
   })
 }
 

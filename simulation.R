@@ -52,14 +52,15 @@ data_tibble <- tibble(X = runif(n, 0, 10),
 
 ## Analysis -------------------------------------------------------------------
 
-analysis_tibble <- analyse(data_tibble, alpha = 0.1)
+analysis_tibble <- data_tibble |>
+  analyse(split, sig = 0.1) |>
+  evaluate()
 
 
 ## Plotting --------------------------------------------------------------------
 ## Bin analysis-data into quantiles based on test data
 X.test <- data_tibble[ind_test, ] |> pull(X)
-## TODO <2024-05-22 Wed> Currently, the final bin is odd.
-analysis_tibble <- analysis_tibble |>
+binned_tibble <- analysis_tibble |>
   mutate(results.binned = map(results, ~ bin(.x, X.test, 20) |> filter(bin < 19))) |>
   mutate(averages = map(results.binned, ~ summarise(.x, coverage = mean(coverage), leng = mean(leng))), .keep = "unused")
 
