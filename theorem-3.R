@@ -3,6 +3,7 @@ library(broom)
 library(dplyr)
 library(ggplot2)
 library(purrr)
+library(scales)
 library(stringr)
 library(tibble)
 library(tidyr)
@@ -68,6 +69,40 @@ run_simulation <- function(n, model_name, model, method_name, method) {
 
   ## Return result
   simulation_result
+}
+
+plot_coverage <- function(results_tibble) {
+  log4_trans <- trans_new("log4", 
+    transform = function(x) log(x, base = 4),
+    inverse = function(x) 4^x)
+
+  ggplot(results_tibble, aes(x = n, y = coverage, color = method_name, group = method_name)) +
+    geom_line() +
+    facet_wrap(~ model_name) +
+    labs(title = "Coverage vs n for each Method and Model",
+      x = "n",
+      y = "Coverage",
+      color = "Method") +
+    ## scale_x_continuous(breaks = unique(results_tibble$n)) +
+    scale_x_continuous(trans = log4_trans) +
+    theme_minimal()
+}
+
+plot_leng <- function(results_tibble) {
+  log4_trans <- trans_new("log4", 
+    transform = function(x) log(x, base = 4),
+    inverse = function(x) 4^x)
+
+  ggplot(results_tibble, aes(x = n, y = leng, color = method_name, group = method_name)) +
+    geom_line() +
+    facet_wrap(~ model_name) +
+    labs(title = "Leng vs n for each Method and Model",
+      x = "n",
+      y = "Coverage",
+      color = "Method") +
+    ## scale_x_continuous(breaks = unique(results_tibble$n)) +
+    scale_x_continuous(trans = log4_trans) +
+    theme_minimal()
 }
 
 ## -----------------------------------------------------------------------------
