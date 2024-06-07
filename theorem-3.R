@@ -1,4 +1,5 @@
 ## Packages
+library(broom)
 library(dplyr)
 library(ggplot2)
 library(purrr)
@@ -7,32 +8,18 @@ library(tibble)
 library(tidyr)
 
 source("dcp.R")
-source("lib.R")
 
-alpha.sig <- 0.1
+logs_dir <- "logs/"
+results_dir <- "results/theorem-3/"
+runs <- 5
 
-results_tibble <- crossing(
-  tibble(n = 4^(3:5)),
-  ## tibble(n = 4^(3:10)),
-  tibble(model = list(
-    ## D = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
-    ## P = function(x) rpois(length(x), pmin(pmax(x, 1), 6)),
-    ## NI = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 *(x > 7),
-    S = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
-  )),
-  tibble(method = list(
-    QR = dcp_qr,
-    DR = dcp_dr,
-    IDR = dcp_idr,
-    CP_OLS = dcp_cp_ols,
-    CP_LOC = dcp_cp_loc
-  )
-  )
-)
+alpha_sig <- 0.1
 
-run_simulation <- function(n, model, method) {
+run_simulation <- function(n, model_name, model, method_name, method) {
+  log_file <- str_c(logs_dir, "theorem-3.log")
   ## Setup
   set.seed(42 + n) # Ensures we generate the same data for every `n'
+  cat(str_c(n, model_name, method_name, sep = " ") , file = log_file, sep = "\n", append = TRUE)
 
   n_train <- n / 4
   n_valid <- n / 2
@@ -49,9 +36,7 @@ run_simulation <- function(n, model, method) {
     )
   }
 
-  ## TODO <2024-05-29 Wed> Use 500 here.
-  ## Take mean coverage and length over 500 runs
-  reduce(1:10, \(acc, nxt) {
+  simulation_result <- reduce(1:runs, \(acc, nxt) {
     data_tibble <- tibble(
       X = runif(n, 0, 10),
       Y = model(X)
@@ -61,49 +46,57 @@ run_simulation <- function(n, model, method) {
         Y = Y + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train))
       )
     
-    result <- method(Y ~ X, data_tibble, split, alpha.sig)
+    results_list <- method(Y ~ X, data_tibble, split, alpha_sig)
+    cat(str_c("Run", nxt, sep = " "), file = log_file, sep = "\n", append = TRUE)
 
-    res <- result |> summarise(coverage = mean(coverage), leng = mean(leng))
-
-    ## TODO <2024-05-29 Wed> DCP paper does some GLM related stuff.
-    cond_res <- result |>
-      mutate(bins = cut(data_tibble$X[ind_test], breaks = 0:10)) |>
-      group_by(bins, .drop = FALSE) |>
-      summarise(
-        conditional_coverage = mean(coverage),
-        conditional_length = mean(leng)
-      )
-
-    ## TODO <2024-05-29 Wed> Make accumulation more elegant somehow.
-    acc$coverage <- acc$coverage + (res$coverage - acc$coverage) / nxt
-    acc$leng <- acc$leng + (res$leng - acc$leng) / nxt
-    ## TODO <2024-05-29 Wed> Deal with NaNs (happens when a bin is empty)
-    ## TODO <2024-05-29 Wed> Make selecting columns more generic.
-    acc$conditional <- cbind(bins = acc$conditional[, 1],
-      acc$conditional[, c(2:3)] + (cond_res[, c(2:3)] - acc$conditional[, c(2:3)]) / nxt
-    )
+    acc$coverage <- acc$coverage + (mean(results_list$coverage) - acc$coverage) / nxt
+    acc$leng <- acc$leng + (mean(results_list$leng) - acc$leng) / nxt
+    acc$conditional <- append(acc$conditional, list(tidy(results_list$conditional_glm)))
     acc
   },
   .init = list(
     coverage = 0,
     leng = 0,
-    conditional = tibble(
-      bins = levels(cut(1:10, breaks = 0:10)),
-      conditional_coverage = rep(0, 10),
-      conditional_leng = rep(0, 10)
-    )
+    conditional = list()
   ))
+
+  ## Save results to file
+  filename <- results_dir |>
+    str_c(n, model_name, method_name, sep = "_") |>
+    str_c(".RData")
+  save(simulation_result, file = filename)
+
+  ## Return result
+  simulation_result
 }
 
-results_tibble <- results_tibble |> # I did too much Rust coding back in my days.
-  mutate(compute = pmap(list(n, model, method), run_simulation)) |>
+## -----------------------------------------------------------------------------
+## Run simulation
+## -----------------------------------------------------------------------------
+
+results_tibble <- crossing(
+  tibble(n = 4^(3:5)),
+  ## tibble(n = 4^(3:10)),
+  tibble(model = list(
+    D = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
+    P = function(x) rpois(length(x), pmin(pmax(x, 1), 6)),
+    NI = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 *(x > 7),
+    S = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
+  )),
+  tibble(method = list(
+    QR = dcp_qr,
+    DR = dcp_dr,
+    IDR = dcp_idr,
+    CP_OLS = dcp_cp_ols,
+    CP_LOC = dcp_cp_loc
+  ))) |>
+  mutate(model_name = names(model), method_name = names(method), .after = n) |>
+  mutate(compute = pmap(list(n, model_name, model, method_name, method), run_simulation)) |>
   mutate(
     coverage = map_dbl(compute, \(x) x$coverage),
     leng = map_dbl(compute, \(x) x$leng),
-    ## TODO <2024-05-29 Wed> Maybe unpack conditional differently.
     conditional = map(compute, \(x) x$conditional),
     .keep = "unused"
   )
 
-## TODO <2024-05-29 Wed>: Maybe also dump raw computed data
-## TODO <2024-05-29 Wed>: Save `results' after computation
+save(results_tibble, file = "results/theorem-3/result_tibble.RData")
