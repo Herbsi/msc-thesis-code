@@ -11,7 +11,7 @@ source("dcp.R")
 
 logs_dir <- "logs/"
 results_dir <- "results/theorem-3/"
-runs <- 5
+runs <- 500
 
 alpha_sig <- 0.1
 
@@ -75,8 +75,8 @@ run_simulation <- function(n, model_name, model, method_name, method) {
 ## -----------------------------------------------------------------------------
 
 results_tibble <- crossing(
-  tibble(n = 4^(3:5)),
-  ## tibble(n = 4^(3:10)),
+  ## tibble(n = 4^(3:5)),
+  tibble(n = 4^(3:10)),
   tibble(model = list(
     D = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
     P = function(x) rpois(length(x), pmin(pmax(x, 1), 6)),
