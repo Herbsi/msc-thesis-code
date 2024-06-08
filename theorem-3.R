@@ -38,6 +38,7 @@ run_simulation <- function(n, model_name, model, method_name, method) {
     )
   }
 
+  skipped <- 0
   simulation_result <- reduce(1:runs, \(acc, nxt) {
     data_tibble <- tibble(
       X = runif(n, 0, 10),
@@ -52,7 +53,10 @@ run_simulation <- function(n, model_name, model, method_name, method) {
     writeLines(str_c("  ", nxt))
 
     acc$coverage <- acc$coverage + (mean(results_list$coverage) - acc$coverage) / nxt
-    acc$leng <- acc$leng + (mean(results_list$leng) - acc$leng) / nxt
+    if (!is.na(mean(results_list$leng))) { # Skip run where `leng' contains NA
+      acc$leng + mean(results_list$leng)
+      skipped <<- skipped + 1
+    }
     acc$conditional <- append(acc$conditional, list(results_list$conditional_glm))
     acc
   },
@@ -61,6 +65,8 @@ run_simulation <- function(n, model_name, model, method_name, method) {
     leng = 0,
     conditional = list()
   ))
+
+  simulation_result$leng <- simulation_result$leng / (runs - skipped) # Calculate mean leng over no. of actual runs
 
   ## Save results to file
   filename <- results_dir |>
