@@ -12,6 +12,7 @@ source("dcp.R")
 current_time <- format(Sys.time(), "%Y%m%d%H%M%S")
 
 results_dir <- str_c("results", "theorem-3", current_time, "", sep = "/")
+dir.create(file.path(results_dir))
 runs <- 500
 
 alpha_sig <- 0.1
