@@ -112,18 +112,19 @@ plot_leng <- function(results_tibble) {
     theme_minimal()
 }
 
-plot_cond_coverage <- function(results_tibble) {
+pred_cond_coverage <- function(results_tibble) {
+  prediction_interval <- seq(0, 10, length.out = 100)
+
   ## Function to generate predictions using coefficients from tidy output
   predict_from_tidy <- function(tidy_model, x_values) {
     intercept <- tidy_model |> filter(term == "(Intercept)") |> pull(estimate)
     slope <- tidy_model |> filter(term == "X") |> pull(estimate)
     linear_predictor <- intercept + slope * x_values
-    plogis(-linear_predictor)
+    plogis(linear_predictor)
   }
   
-  prediction_interval <- seq(0, 10, length.out = 100)
-  
-  plot_tibble <- results_tibble |>
+  results_tibble |>
+    ## TODO 2024-06-08 Only predict on subsample to make it faster.
     mutate(conditional =
              map(conditional,
                \(model_list) {
@@ -139,10 +140,12 @@ plot_cond_coverage <- function(results_tibble) {
                      conditional_coverage = mean(prediction),
                      cc_std = sd(prediction)
                      )
-               }), .keep = "unused") |>
-    unnest(conditional)
-  
-  ggplot(plot_tibble, aes(x = X, y = conditional_coverage, color = method_name)) +
+               }), .keep = "unused")
+}
+
+plot_cond_coverage <- function(pred_tibble) {
+  plot_tibble <- unnest(pred_tibble, conditional)
+  ggplot(pred_tibble, aes(x = X, y = conditional_coverage, color = method_name)) +
     geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
     facet_grid(n ~ model_name) +
