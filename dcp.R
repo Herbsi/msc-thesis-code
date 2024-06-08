@@ -1,3 +1,4 @@
+library(broom)
 library(isodistrreg)
 library(quantreg)
 
@@ -26,7 +27,7 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     leng <- dcp_leng(fit, data_test, threshold)
     
     ## Estimate conditional coverage as output of a logistic regression
-    conditional_glm <- glm(coverage ~ X, family = binomial(link = "logit"), data = data_test)
+    conditional_glm <- tidy(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test))
     
     list(coverage = coverage,
       leng = leng,

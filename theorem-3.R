@@ -1,5 +1,4 @@
 ## Packages
-library(broom)
 library(dplyr)
 library(ggplot2)
 library(purrr)
@@ -52,7 +51,7 @@ run_simulation <- function(n, model_name, model, method_name, method) {
 
     acc$coverage <- acc$coverage + (mean(results_list$coverage) - acc$coverage) / nxt
     acc$leng <- acc$leng + (mean(results_list$leng) - acc$leng) / nxt
-    acc$conditional <- append(acc$conditional, list(tidy(results_list$conditional_glm)))
+    acc$conditional <- append(acc$conditional, list(results_list$conditional_glm))
     acc
   },
   .init = list(
