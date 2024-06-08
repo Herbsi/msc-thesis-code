@@ -11,19 +11,19 @@ source("dcp.R")
 
 current_time <- format(Sys.time(), "%Y%m%d%H%M%S")
 
-results_dir <- str_c("results", "theorem-3", current_time, "", sep = "/")
-dir.create(file.path(results_dir))
-runs <- 500
+results_dir <- file.path("results", "theorem-3", current_time)
+dir.create(results_dir)
 
-alpha_sig <- 0.1
-
+## -----------------------------------------------------------------------------
+## Functions
+## -----------------------------------------------------------------------------
 
 run_simulation <- function(n, model_name, model, method_name, method) {
   writeLines(str_c(n, model_name, method_name, sep = " "))
   
   ## Setup
   set.seed(42 + n) # Ensures we generate the same data for every `n'
-    
+  
   n_train <- n / 4
   n_valid <- n / 2
   n_test <- n / 4
@@ -39,8 +39,7 @@ run_simulation <- function(n, model_name, model, method_name, method) {
     )
   }
 
-  skipped <- 0
-  simulation_result <- reduce(1:runs, \(acc, nxt) {
+  simulation_result <- replicate(runs, simplify = FALSE, expr = {
     data_tibble <- tibble(
       X = runif(n, 0, 10),
       Y = model(X)
@@ -51,28 +50,19 @@ run_simulation <- function(n, model_name, model, method_name, method) {
       )
     
     results_list <- method(Y ~ X, data_tibble, split, alpha_sig)
-    writeLines(str_c("  ", nxt))
 
-    acc$coverage <- acc$coverage + (mean(results_list$coverage) - acc$coverage) / nxt
-    if (!is.na(mean(results_list$leng))) { # Skip run where `leng' contains NA
-      acc$leng + mean(results_list$leng)
-      skipped <<- skipped + 1
-    }
-    acc$conditional <- append(acc$conditional, list(results_list$conditional_glm))
-    acc
-  },
-  .init = list(
-    coverage = 0,
-    leng = 0,
-    conditional = list()
-  ))
+    tibble(coverage = mean(results_list$coverage),
+      leng = mean(results_list$leng),
+      conditional = list(results_list$conditional_glm))
+  }) |>
+  list_rbind() |>
+  summarise(
+    coverage = mean(coverage, na.rm = TRUE),
+    leng = mean(leng, na.rm = TRUE),
+    conditional = list(conditional)) # We want to keep all `runs' glms at hand, so we ‘summarise’ them by nesting them into a list
 
-  simulation_result$leng <- simulation_result$leng / (runs - skipped) # Calculate mean leng over no. of actual runs
-
+  filename <- file.path(results_dir, str_c(n, model_name, method_name, sep = "_") |> str_c(".RData"))
   ## Save results to file
-  filename <- results_dir |>
-    str_c(n, model_name, method_name, sep = "_") |>
-    str_c(".RData")
   save(simulation_result, file = filename)
 
   ## Return result
@@ -140,7 +130,7 @@ pred_cond_coverage <- function(results_tibble) {
                    summarise(
                      conditional_coverage = mean(prediction),
                      cc_std = sd(prediction)
-                     )
+                   )
                }), .keep = "unused")
 }
 
@@ -161,6 +151,10 @@ plot_cond_coverage <- function(pred_tibble) {
 ## Run simulation
 ## -----------------------------------------------------------------------------
 
+runs <- 500
+
+alpha_sig <- 0.1
+
 results_tibble <- crossing(
   tibble(n = 2^(5:16)),
   tibble(model = list(
@@ -178,11 +172,6 @@ results_tibble <- crossing(
   ))) |>
   mutate(model_name = names(model), method_name = names(method), .after = n) |>
   mutate(compute = pmap(list(n, model_name, model, method_name, method), run_simulation)) |>
-  mutate(
-    coverage = map_dbl(compute, \(x) x$coverage),
-    leng = map_dbl(compute, \(x) x$leng),
-    conditional = map(compute, \(x) x$conditional),
-    .keep = "unused"
-  )
+  unnest(compute)
 
-save(results_tibble, file = str_c(results_dir, "results_tibble.RData")) 
+save(results_tibble, file = file.path(results_dir, "results_tibble.RData")) 
