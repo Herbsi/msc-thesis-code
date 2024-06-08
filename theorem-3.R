@@ -9,18 +9,20 @@ library(tidyr)
 
 source("dcp.R")
 
-logs_dir <- "logs/"
-results_dir <- "results/theorem-3/"
+current_time <- format(Sys.time(), "%Y%m%d%H%M%S")
+
+results_dir <- str_c("results", "theorem-3", current_time, "", sep = "/")
 runs <- 500
 
 alpha_sig <- 0.1
 
+
 run_simulation <- function(n, model_name, model, method_name, method) {
-  log_file <- str_c(logs_dir, "theorem-3.log")
+  writeLines(str_c(n, model_name, method_name, sep = " "))
+  
   ## Setup
   set.seed(42 + n) # Ensures we generate the same data for every `n'
-  cat(str_c(n, model_name, method_name, sep = " ") , file = log_file, sep = "\n", append = TRUE)
-
+    
   n_train <- n / 4
   n_valid <- n / 2
   n_test <- n / 4
@@ -47,7 +49,7 @@ run_simulation <- function(n, model_name, model, method_name, method) {
       )
     
     results_list <- method(Y ~ X, data_tibble, split, alpha_sig)
-    cat(str_c("Run", nxt, sep = " "), file = log_file, sep = "\n", append = TRUE)
+    writeLines(str_c("  ", nxt))
 
     acc$coverage <- acc$coverage + (mean(results_list$coverage) - acc$coverage) / nxt
     acc$leng <- acc$leng + (mean(results_list$leng) - acc$leng) / nxt
@@ -150,8 +152,7 @@ plot_cond_coverage <- function(results_tibble) {
 ## -----------------------------------------------------------------------------
 
 results_tibble <- crossing(
-  ## tibble(n = 4^(3:5)),
-  tibble(n = 4^(3:10)),
+  tibble(n = 2^(5:16)),
   tibble(model = list(
     D = function(x) rgamma(length(x), shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
     P = function(x) rpois(length(x), pmin(pmax(x, 1), 6)),
@@ -174,4 +175,4 @@ results_tibble <- crossing(
     .keep = "unused"
   )
 
-save(results_tibble, file = "results/theorem-3/result_tibble.RData")
+save(results_tibble, file = str_c(results_dir, "results_tibble.RData")) 
