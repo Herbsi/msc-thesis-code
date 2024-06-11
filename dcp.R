@@ -25,7 +25,8 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     ## Estimate coverage
     coverage <- dcp_score(fit, data_test) <= threshold
     leng <- dcp_leng(fit, data_test, threshold)
-    
+    leng[which(leng == -Inf)] <- NA
+
     ## Estimate conditional coverage as output of a logistic regression
     conditional_glm <- tidy(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test))
     
@@ -103,12 +104,10 @@ dcp_score.rqs <- function(fit, data) {
 
 dcp_leng.rqs <- function(fit, data, threshold) {
   ## Assumes `fit' has its `threshold'
-  leng <- apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)],
+  apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)],
     1,
     \(row) max(row) - min(row)
   )
-  leng[which(leng == -Inf)] <- NA
-  leng 
 }
 
 
@@ -150,7 +149,6 @@ dcp_leng.dr <- function(fit, data, threshold) {
     tmp <- fit$ys[abs(pred[i, ] - 0.5) <= threshold]
     leng[i] <- max(tmp) - min(tmp)
   }
-  leng[which(leng == -Inf)] <- NA
   leng
 }
 
@@ -174,14 +172,12 @@ dcp_score.idrfit <- function(fit, data) {
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  leng <- dcp_predict(fit, data) |>
+  dcp_predict(fit, data) |>
     map_dbl(~ {
       tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
       max(tmp) - min(tmp)
     }
     )
-  leng[which(leng == -Inf)] <- NA
-  leng
 }
 
 ### IDR-BAG --------------------------------------------------------------------
