@@ -5,7 +5,7 @@ df <- crossing(
   tibble(model_name = c("D", "P", "NI", "S")),
   tibble(method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"))
 )
-files <- str_c("results/theorem-3-euler/", df$n, df$model, df$method, sep = "_") |>
+files <- str_c("results/theorem-3-euler/", df$n, df$model_name, df$method_name, sep = "_") |>
   str_c(".RData")
 
 df2 <- tibble()
