@@ -58,7 +58,7 @@ run_simulation <- function(n, model_name, model, method_name, method) {
   }) |>
   list_rbind() |>
   summarise(
-    coverage = mean(coverage, na.rm = TRUE),
+    coverage = mean(coverage),
     leng = mean(leng),
     conditional = list(conditional)) # We want to keep all `runs' glms at hand, so we ‘summarise’ them by nesting them into a list
 
@@ -70,75 +70,105 @@ run_simulation <- function(n, model_name, model, method_name, method) {
   simulation_result
 }
 
-plot_coverage <- function(results_tibble) {
-  log4_trans <- trans_new("log4", 
-    transform = function(x) log(x, base = 4),
-    inverse = function(x) 4^x)
 
-  ggplot(results_tibble, aes(x = n, y = coverage, color = method_name, group = method_name)) +
+predict_from_tidy <- function(tidy_model, x_values) {
+  intercept <- tidy_model |> filter(term == "(Intercept)") |> pull(estimate)
+  slope <- tidy_model |> filter(term == "X") |> pull(estimate)
+  linear_predictor <- intercept + slope * x_values
+  plogis(linear_predictor)
+}
+
+
+pred_cond_coverage <- function(results_tibble) {
+  prediction_interval <- seq(0, 10, length.out = 100)
+
+  results_tibble |>
+    mutate(conditional = map(conditional, # Map the column
+      \(model_list) {
+        map(model_list, # Map the list in the current row
+          \(tidy_model) {
+            data.frame(
+              X = prediction_interval,
+              prediction = predict_from_tidy(tidy_model, prediction_interval))
+          })
+      }))
+}
+
+
+calc_coverage_per_X <- function(pred_tibble) {
+  pred_tibble |>
+    mutate(conditional = map(conditional,
+      \(tibble_list) {
+        bind_rows(tibble_list) |>
+          group_by(X) |>
+          summarise(
+            conditional_coverage = mean(prediction),
+            cc_std = sd(prediction)
+          )
+      }))
+}
+
+
+calc_uncond_coverage_sd <- function(pred_tibble) {
+  pred_tibble |>
+    mutate(coverage_sd = map_dbl(conditional, # Map the column
+      \(tibble_list) {
+        map_dbl(tibble_list, # Map the list inside the current cell
+          \(pred_tibble) {
+            sd(pred_tibble$prediction - 0.9)
+          }) |>
+          mean() # Mean over the data
+      })
+    )
+}
+
+
+plot_coverage <- function(results_tibble, var) {
+  ggplot(results_tibble,
+    aes(x = n, y = coverage, color = method_name, group = method_name)) +
     geom_line() +
     facet_wrap(~ model_name) +
     labs(title = "Coverage vs n for each Method and Model",
       x = "n",
       y = "Coverage",
       color = "Method") +
-    ## scale_x_continuous(breaks = unique(results_tibble$n)) +
-    scale_x_continuous(trans = log4_trans) +
+    scale_x_continuous(trans = "log2") +
     theme_minimal()
 }
 
-plot_leng <- function(results_tibble) {
-  log4_trans <- trans_new("log4", 
-    transform = function(x) log(x, base = 4),
-    inverse = function(x) 4^x)
 
-  ggplot(results_tibble, aes(x = n, y = leng, color = method_name, group = method_name)) +
+plot_leng <- function(results_tibble) {
+  ggplot(results_tibble,
+    aes(x = n, y = leng, color = method_name, group = method_name)) +
     geom_line() +
     facet_wrap(~ model_name) +
     labs(title = "Leng vs n for each Method and Model",
       x = "n",
       y = "Coverage",
       color = "Method") +
-    ## scale_x_continuous(breaks = unique(results_tibble$n)) +
-    scale_x_continuous(trans = log4_trans) +
+    scale_x_continuous(trans = "log2") +
     theme_minimal()
 }
 
-pred_cond_coverage <- function(results_tibble) {
-  prediction_interval <- seq(0, 10, length.out = 100)
 
-  ## Function to generate predictions using coefficients from tidy output
-  predict_from_tidy <- function(tidy_model, x_values) {
-    intercept <- tidy_model |> filter(term == "(Intercept)") |> pull(estimate)
-    slope <- tidy_model |> filter(term == "X") |> pull(estimate)
-    linear_predictor <- intercept + slope * x_values
-    plogis(linear_predictor)
-  }
-  
-  results_tibble |>
-    ## TODO 2024-06-08 Only predict on subsample to make it faster.
-    mutate(conditional =
-             map(conditional,
-               \(model_list) {
-                 map(model_list,
-                   \(tidy_model) {
-                     data.frame(
-                       X = prediction_interval,
-                       prediction = predict_from_tidy(tidy_model, prediction_interval))
-                   }) |>
-                   bind_rows() |>
-                   group_by(X) |>
-                   summarise(
-                     conditional_coverage = mean(prediction),
-                     cc_std = sd(prediction)
-                   )
-               }), .keep = "unused")
+plot_sd <- function(pred_tibble) {
+  calc_uncond_coverage_sd(pred_tibble) |>
+    ggplot(aes(x = n, y = coverage_sd, color = method_name, group = method_name)) +
+    geom_line() +
+    facet_wrap(~ model_name) +
+    labs(title = "sd(coverage) vs n for each Method and Model",
+      x = "n",
+      y = "sd(coverage)",
+      color = "Method") +
+    scale_x_continuous(trans = "log2") +
+    theme_minimal()
 }
 
+
 plot_cond_coverage <- function(pred_tibble) {
-  plot_tibble <- unnest(pred_tibble, conditional)
-  ggplot(pred_tibble, aes(x = X, y = conditional_coverage, color = method_name)) +
-    geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
+  plot_tibble <- unnest(calc_coverage_per_X(pred_tibble), conditional)
+  ggplot(plot_tibble, aes(x = X, y = conditional_coverage, color = method_name)) +
+    ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
     facet_grid(n ~ model_name) +
     labs(title = "Predictions by X for each combination of n, model, and method",
@@ -148,6 +178,25 @@ plot_cond_coverage <- function(pred_tibble) {
       fill = "Method") +
     theme_minimal()
 }
+
+
+plot_cond_sd <- function(pred_tibble) {
+  calc_coverage_per_X(pred_tibble) |>
+    unnest(conditional) |>
+    ggplot(aes(x = X, y = cc_std, color = method_name)) +
+    geom_line() +
+    facet_grid(n ~ model_name) +
+    labs(title = "SD by X for each combination of n, model, and method",
+      x = "X",
+      y = "Conditional SD",
+      color = "Method",
+      fill = "Method") +
+    theme_minimal()
+}
+
+## TODO 2024-06-07 Summarise results for conditional coverage in table.
+
+
 ## -----------------------------------------------------------------------------
 ## Run simulation
 ## -----------------------------------------------------------------------------
