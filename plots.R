@@ -16,9 +16,11 @@ plot_unconditional <- function(results_tibble) {
 }
 
 
-plot_conditional_coverage <- function(pred_tibble) {
-  plot_tibble <- unnest(calc_conditional_per_X(pred_tibble), conditional, names_sep = "_")
-  ggplot(plot_tibble, aes(x = conditional_X, y = conditional_coverage, color = method_name)) +
+plot_conditional_coverage <- function(results_tibble) {
+  results_tibble |>
+    unnest(conditional_coverage) |>
+    mutate(X = rep(seq(0, 10, length.out = 100), nrow(results_tibble))) |>
+    ggplot(aes(x = X, y = conditional_coverage, color = method_name)) +
     ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
     facet_grid(n ~ model_name) +
@@ -31,9 +33,11 @@ plot_conditional_coverage <- function(pred_tibble) {
 }
 
 
-plot_conditional_leng <- function(pred_tibble) {
-  plot_tibble <- unnest(calc_conditional_per_X(pred_tibble), conditional, names_sep = "_")
-  ggplot(plot_tibble, aes(x = conditional_X, y = conditional_leng, color = method_name)) +
+plot_conditional_leng <- function(results_tibble) {
+  results_tibble |>
+    unnest(conditional_leng) |>
+    mutate(X = rep(seq(0, 10, length.out = 100), nrow(results_tibble))) |>
+    ggplot(aes(x = X, y = conditional_leng, color = method_name)) +
     ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
     facet_grid(n ~ model_name) +

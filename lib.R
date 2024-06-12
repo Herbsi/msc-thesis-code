@@ -65,6 +65,8 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
     )
   }
 
+  prediction_interval <- seq(0, 10, length.out = 100)
+
   simulation_result <- replicate(runs, simplify = FALSE, expr = {
     data_tibble <- tibble(
       X = runif(n, 0, 10),
@@ -79,15 +81,19 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
       tibble(
         coverage = mean(coverage),
         leng = leng,
-        conditional_coverage = list(conditional_coverage),
-        conditional_leng = list(conditional_leng))) # NOTE 2024-06-12 This is a lot of data; but storage is cheap.
+        conditional_coverage = list(predict_from_tidy(conditional_coverage, prediction_interval)),
+        conditional_leng = list(predict(conditional_leng, prediction_interval)$y)))
   }) |>
   list_rbind() |>
   summarise(
     coverage = mean(coverage),
     leng = mean(leng),
-    conditional_coverage = list(conditional_coverage),  # We want to keep all `runs' glms at hand, so we ‘summarise’ them by nesting them into a list
-    conditional_leng = list(conditional_leng)
+    ## `conditional_coverage' is a list of `runs' items, each a vector of 100 values;
+    ## (the 100 comes from `prediction_interval')
+    ## bind_cols turns it into a 100 x `runs' tibble;
+    ## then we take the `rowMeans()' to average out the data randomness.
+    conditional_coverage = bind_cols(conditional_coverage, .name_repair = "unique") |> rowMeans() |> list(),
+    conditional_leng = bind_cols(conditional_leng, .name_repair = "unique") |> rowMeans() |> list()
   )
 
   filename <- file.path(results_dir, str_c(n, model_name, method_name, sep = "_") |> str_c(".RData"))
@@ -159,16 +165,17 @@ merge_results <- function(n, ts) {
 }
 
 
+predict_from_tidy <- function(tidy_model, x_values) {
+  intercept <- tidy_model |> filter(term == "(Intercept)") |> pull(estimate)
+  slope <- tidy_model |> filter(term == "X") |> pull(estimate)
+  linear_predictor <- intercept + slope * x_values
+  plogis(linear_predictor)
+}
+
+
 pred_conditional <- function(results_tibble) {
   ## Turns `results_tibble' into `pred_tibble' by predicting conditional coverage
   ## and conditional length along a grid of X values.
-  predict_from_tidy <- function(tidy_model, x_values) {
-    intercept <- tidy_model |> filter(term == "(Intercept)") |> pull(estimate)
-    slope <- tidy_model |> filter(term == "X") |> pull(estimate)
-    linear_predictor <- intercept + slope * x_values
-    plogis(linear_predictor)
-  }
-
 
   prediction_interval <- seq(0, 10, length.out = 100)
 

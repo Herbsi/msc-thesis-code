@@ -31,9 +31,8 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
     ## Learn conditional length – basically data compression
     conditional_leng <- dcp_leng(fit, data_test, threshold)
-    names(conditional_leng) <- data_test$X
-    conditional_leng[which(conditional_leng == -Inf)] <- NA
-    conditional_leng <- splinefun(x = data_test$X, y = conditional_leng)
+    indices <- conditional_leng != -Inf
+    conditional_leng <- smooth.spline(x = data_test$X[indices], y = conditional_leng[indices])
     
     list(coverage = coverage,
       leng = leng,
