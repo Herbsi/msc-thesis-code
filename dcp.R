@@ -24,15 +24,20 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
     ## Estimate coverage
     coverage <- dcp_score(fit, data_test) <= threshold
-    leng <- dcp_leng(fit, data_test, threshold)
-    leng[which(leng == -Inf)] <- NA
-
+    leng <- diff(range(data_test$Y[coverage], na.rm = TRUE))
+    
     ## Estimate conditional coverage as output of a logistic regression
-    conditional_glm <- tidy(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test))
+    conditional_coverage <- tidy(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test))
+
+    ## Learn conditional length – basically data compression
+    conditional_leng <- dcp_leng(fit, data_test, threshold)
+    conditional_leng[which(conditional_leng == -Inf)] <- NA
+    conditional_leng <- splinefun(x = data_test$X, y = conditional_leng)
     
     list(coverage = coverage,
       leng = leng,
-      conditional_glm = conditional_glm)
+      conditional_coverage = conditional_coverage,
+      conditional_leng = conditional_leng)
   })
 }
 
