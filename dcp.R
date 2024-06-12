@@ -31,6 +31,7 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
     ## Learn conditional length – basically data compression
     conditional_leng <- dcp_leng(fit, data_test, threshold)
+    names(conditional_leng) <- data_test$X
     conditional_leng[which(conditional_leng == -Inf)] <- NA
     conditional_leng <- splinefun(x = data_test$X, y = conditional_leng)
     
@@ -73,7 +74,7 @@ dcp_fit <- function(type, formula, data, ...) {
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data),
-    "IDR" = dcp_fit.idrfit(formula, data),
+    "IDR" = dcp_fit.idrfit(formula, data, args$ys),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -108,7 +109,6 @@ dcp_score.rqs <- function(fit, data) {
 }
 
 dcp_leng.rqs <- function(fit, data, threshold) {
-  ## Assumes `fit' has its `threshold'
   apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)],
     1,
     \(row) max(row) - min(row)
@@ -159,11 +159,13 @@ dcp_leng.dr <- function(fit, data, threshold) {
 
 ### IDR ------------------------------------------------------------------------
 
-dcp_fit.idrfit <- function(formula, data) {
+dcp_fit.idrfit <- function(formula, data, ys) {
   ## NOTE <2024-05-22 Wed> Extracting the formula could be more robust.
   y <- data[[formula[[2]]]]
   x <- data[, formula[[3]]]
-  idr(y, x)
+  fit <- idr(y, x)
+  fit$ys <- ys
+  fit
 }
 
 dcp_predict.idrfit <- function(fit, data) {
@@ -177,12 +179,10 @@ dcp_score.idrfit <- function(fit, data) {
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  dcp_predict(fit, data) |>
-    map_dbl(~ {
-      tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
-      max(tmp) - min(tmp)
-    }
-    )
+  ## FIXME 2024-06-12 This gives weird results
+  ## For example, the spline learned on the conditional length then outputs negative valu
+  cdf(dcp_predict(fit, data), fit$ys) |>
+    apply(1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
 ### IDR-BAG --------------------------------------------------------------------
