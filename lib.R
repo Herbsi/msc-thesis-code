@@ -186,15 +186,17 @@ pred_conditional <- function(results_tibble) {
 }
 
 
-calc_coverage_per_X <- function(pred_tibble) {
+calc_conditional_per_X <- function(pred_tibble) {
   pred_tibble |>
     mutate(conditional = map(conditional,
       \(tibble_list) {
         bind_rows(tibble_list) |>
           group_by(X) |>
           summarise(
-            conditional_coverage = mean(coverage),
-            cc_std = sd(coverage)
+            coverage = mean(coverage),
+            coverage_sd = sd(coverage),
+            leng = mean(leng),
+            leng_sd = sd(leng)
           )
       }))
 }
