@@ -20,7 +20,7 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
     ## Calibrate model
     scores_valid <- dcp_score(fit, data_valid)
-    threshold <- sort(scores_valid)[ceiling((1 - alpha) * (1 + length(scores_valid)))]
+    threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1 / length(scores_valid)), 1))
 
     ## Estimate coverage
     coverage <- dcp_score(fit, data_test) <= threshold
@@ -206,14 +206,12 @@ dcp_score.idrbag <- function(fit, data) {
 }
 
 dcp_leng.idrbag <- function(fit, data, threshold) {
-  leng <- dcp_predict(fit, data) |>
+  dcp_predict(fit, data) |>
     map_dbl(~ {
       tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
       max(tmp) - min(tmp)
     }
     )
-  leng[which(leng == -Inf)] <- NA
-  leng
 }
 
 
