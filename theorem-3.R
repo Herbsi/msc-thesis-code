@@ -49,18 +49,20 @@ run_simulation <- function(n, model_name, model, method_name, method) {
         Y = Y + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train))
       )
     
-    results_list <- method(Y ~ X, data_tibble, split, alpha_sig)
-
-    tibble(coverage = mean(results_list$coverage),
-      leng = mean(results_list$leng, na.rm = TRUE), # Just due to randomness, we sometimes end up with `-Inf', hence `NA', for `leng'
-      # For simplicity, we just remove those when taking the mean over the test set.
-      conditional = list(results_list$conditional_glm))
+    with(method(Y ~ X, data_tibble, split, alpha_sig),
+      tibble(
+        coverage = mean(coverage),
+        leng = leng,
+        conditional_coverage = list(conditional_coverage),
+        conditional_leng = list(conditional_leng))) # NOTE 2024-06-12 This is a lot of data; but storage is cheap.
   }) |>
   list_rbind() |>
   summarise(
     coverage = mean(coverage),
     leng = mean(leng),
-    conditional = list(conditional)) # We want to keep all `runs' glms at hand, so we ‘summarise’ them by nesting them into a list
+    conditional_coverage = list(conditional_coverage),  # We want to keep all `runs' glms at hand, so we ‘summarise’ them by nesting them into a list
+    conditional_leng = list(conditional_leng)
+  )
 
   filename <- file.path(results_dir, str_c(n, model_name, method_name, sep = "_") |> str_c(".RData"))
   ## Save results to file
