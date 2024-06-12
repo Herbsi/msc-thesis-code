@@ -123,29 +123,17 @@ calc_uncond_coverage_sd <- function(pred_tibble) {
 }
 
 
-plot_coverage <- function(results_tibble, var) {
-  ggplot(results_tibble,
-    aes(x = n, y = coverage, color = method_name, group = method_name)) +
+plot_unconditional <- function(results_tibble, var) {
+  results_tibble |>
+    pivot_longer(cols = c(coverage, leng), names_to = "metric", values_to = "value") |>
+    ggplot(aes(x = n, y = value, color = method_name, group = method_name)) +
     geom_line() +
-    facet_wrap(~ model_name) +
-    labs(title = "Coverage vs n for each Method and Model",
+    facet_grid(metric ~ model_name, scales = "free_y") +
+    labs(
+      title = "Coverage and Leng vs n for each Method and Model",
       x = "n",
-      y = "Coverage",
-      color = "Method") +
-    scale_x_continuous(trans = "log2") +
-    theme_minimal()
-}
-
-
-plot_leng <- function(results_tibble) {
-  ggplot(results_tibble,
-    aes(x = n, y = leng, color = method_name, group = method_name)) +
-    geom_line() +
-    facet_wrap(~ model_name) +
-    labs(title = "Leng vs n for each Method and Model",
-      x = "n",
-      y = "Coverage",
-      color = "Method") +
+      color = "Method",
+    ) +
     scale_x_continuous(trans = "log2") +
     theme_minimal()
 }
