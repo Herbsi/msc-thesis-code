@@ -24,8 +24,8 @@ run_simulation <- function(n, model_name, model, method_name, method) {
   ## Setup
   set.seed(42 + n) # Ensures we generate the same data for every `n'
   
-  n_train <- n / 4
-  n_valid <- n / 2
+  n_train <- n / 2
+  n_valid <- n / 4
   n_test <- n / 4
   
   ind_train <- 1:n_train
