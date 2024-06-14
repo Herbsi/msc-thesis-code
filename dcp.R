@@ -2,6 +2,13 @@ library(broom)
 library(isodistrreg)
 library(quantreg)
 
+predict_glm_from_tidy <- function(tidy_glm, newdata) {
+  intercept <- tidy_glm |> filter(term == "(Intercept)") |> pull(estimate)
+  slope <- tidy_glm |> filter(term == "X") |> pull(estimate)
+  plogis(intercept + slope * newdata)
+}
+
+
 dcp <- function(type, formula, data, split, alpha = 0.1) {
   with(split(data), {
     data_train <- train
@@ -115,25 +122,22 @@ dcp_leng.rqs <- function(fit, data, threshold) {
 ### GLM-DR ---------------------------------------------------------------------
 
 dcp_fit.dr <- function(formula, data, ys) {
-  ## FIXME <2024-05-23 Thu> This does not use validation Ys
-  y <- data[[formula[[2]]]]
-  x <- cbind(1, data[, formula[[3]]])
-  ## TODO <2024-05-23 Thu> Use something other than `sapply'
+  y <- data$Y
+  x <- cbind(1, data[, "X"])
   beta <- sapply(ys,
-    \(the_y) suppressWarnings(glm.fit(x, (y <= the_y), family = binomial(link = "logit"))$coefficients))
+    \(the_y) suppressWarnings(
+      glm.fit(x, (y <= the_y), family = binomial(link = "logit"))$coefficients))
   fit <- list(beta = beta, ys = ys)
   class(fit) <- "dr"
   fit
 }
 
 dcp_predict.dr <- function(fit, data) {
-  ## HACK <2024-05-23 Thu> Hard-coded `$X' here
   plogis(as.matrix(cbind(1, data[, "X"])) %*% fit$beta)
 }
 
 dcp_score.dr <- function(fit, data) {
   pred <- dcp_predict(fit, data)
-  ## HACK <2024-05-23 Thu> Hard-coded `$Y' here
   imap_dbl(data$Y,
     \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y, rule = 2)$y
     - 0.5) |>
@@ -153,7 +157,6 @@ dcp_leng.dr <- function(fit, data, threshold) {
 ### IDR ------------------------------------------------------------------------
 
 dcp_fit.idrfit <- function(formula, data, ys) {
-  ## NOTE <2024-05-22 Wed> Extracting the formula could be more robust.
   y <- data[[formula[[2]]]]
   x <- data[, formula[[3]]]
   fit <- idr(y, x)
@@ -166,14 +169,10 @@ dcp_predict.idrfit <- function(fit, data) {
 }
 
 dcp_score.idrfit <- function(fit, data) {
-  ## HACK <2024-05-22 Wed> `$Y' is hard-coded here,
-  ## but the IDR package is not the most robust.
   abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  ## FIXME 2024-06-12 This gives weird results
-  ## For example, the spline learned on the conditional length then outputs negative valu
   cdf(dcp_predict(fit, data), fit$ys) |>
     apply(1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
@@ -181,8 +180,8 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
 ### IDR-BAG --------------------------------------------------------------------
 
 dcp_fit.idrbag <- function(formula, data) {
-  y <- data[[formula[[2]]]]
-  x <- data[, formula[[3]]]
+  y <- data$Y
+  x <- data[, "X"]
   fit <- function(data) {
     ## NOTE <2024-05-28 Tue>: Used arbitrary values for `b' and `p' here.
     ## NOTE <2024-05-28 Tue>: Chose small values; otherwise, it takes forever.
@@ -198,8 +197,6 @@ dcp_predict.idrbag <- function(fit, data) {
 }
 
 dcp_score.idrbag <- function(fit, data) {
-  ## HACK <2024-05-28 Tue> `$Y' is hard-coded here,
-  ## but the IDR package is not the most robust.
   abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
 }
 
