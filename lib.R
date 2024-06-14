@@ -9,25 +9,6 @@ library(tidyr)
 
 source("dcp.R")
 
-## Analysis --------------------------------------------------------------------
-
-analyse <- function(data_frame, split, sig = 0.1) {
-  tibble(
-    name = c("dcp-qr",  "dcp-dr", "dcp-idr", "dcp-idrbag", "cp-ols", "cp-loc"),
-    fn = list(dcp_qr, dcp_dr, dcp_idr, dcp_idrbag, dcp_cp_ols, dcp_cp_loc),
-    results = map(seq_along(name), ~ tibble(coverage = NULL, leng = NULL))
-  ) |>
-    mutate(results = map(fn, \(f) f(Y ~ X, data_frame, split, sig)))
-}
-
-evaluate <- function(data_frame) {
-  data_frame |>
-    mutate(
-      ## TODO <2024-05-28 Tue>: Add `sd' and `avg length of IV'
-      unconditional_coverage = map_dbl(results, \(df) summarise(df, mean(coverage)) |> pull()),
-    )
-}
-
 
 ## Simulation ------------------------------------------------------------------
 
@@ -173,55 +154,3 @@ predict_from_tidy <- function(tidy_model, x_values) {
   linear_predictor <- intercept + slope * x_values
   plogis(linear_predictor)
 }
-
-
-pred_conditional <- function(results_tibble) {
-  ## Turns `results_tibble' into `pred_tibble' by predicting conditional coverage
-  ## and conditional length along a grid of X values.
-
-  prediction_interval <- seq(0, 10, length.out = 100)
-
-  results_tibble |>
-    mutate(conditional = map2(conditional_coverage, conditional_leng, # Map the column
-      \(glm_fits, spline_fits) {
-        map2(glm_fits, spline_fits, # Map the lists in the current row
-          \(glm_fit, spline_fit) {
-            data.frame(
-              X = prediction_interval,
-              coverage = predict_from_tidy(glm_fit, prediction_interval),
-              leng = spline_fit(prediction_interval))
-          })
-      }), .keep = "unused")
-}
-
-
-calc_conditional_per_X <- function(pred_tibble) {
-  pred_tibble |>
-    mutate(conditional = map(conditional,
-      \(tibble_list) {
-        bind_rows(tibble_list) |>
-          group_by(X) |>
-          summarise(
-            coverage = mean(coverage),
-            coverage_sd = sd(coverage),
-            leng = mean(leng),
-            leng_sd = sd(leng)
-          )
-      }))
-}
-
-
-calc_uncond_coverage_sd <- function(pred_tibble) {
-  pred_tibble |>
-    mutate(coverage_sd = map_dbl(conditional, # Map the column
-      \(tibble_list) {
-        map_dbl(tibble_list, # Map the list inside the current cell
-          \(pred_tibble) {
-            sd(pred_tibble$prediction - 0.9)
-          }) |>
-          mean() # Mean over the data
-      })
-    )
-}
-
-
