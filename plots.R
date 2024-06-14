@@ -53,3 +53,19 @@ plot_conditional_leng <- function(results_tibble) {
     theme_minimal()
 }
 
+
+plot_conditional_sd <- function(results_tibble) {
+    results_tibble |>
+    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sd(df$conditional_coverage))) |>
+    ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
+    geom_line() +
+    facet_grid(~ model_name) +
+    labs(
+      title = "MSE(coverage) vs n for each Method and Model",
+      x = "n",
+      y = "MSE(coverage)",
+      color = "Method",
+      ) +
+    scale_x_continuous(trans = "log2") +
+    theme_minimal()
+}
