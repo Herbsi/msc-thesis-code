@@ -69,24 +69,27 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
       tibble(
         coverage = coverage,
         leng = leng,
-        conditional_coverage = list(predict_from_tidy(conditional_coverage, prediction_interval)),
-        conditional_leng = {
+        conditional_coverage = list({
+          data.frame(X = prediction_interval,
+            conditional_coverage = predict_from_tidy(conditional_coverage, prediction_interval))
+        }),
+        conditional_leng = list({
           conditional_leng |>
             mutate(bin = cut(X, breaks = breaks, ordered_result = TRUE)) |>
             group_by(bin) |>
-            summarise(conditional_leng = mean(conditional_leng)) |>
-            list()
-        }))
+            summarise(conditional_leng = mean(conditional_leng))
+        })))
   }) |>
   list_rbind() |>
   summarise(
     coverage = mean(coverage),
     leng = mean(leng),
-    ## `conditional_coverage' is a list of `runs' items, each a vector of 100 values;
-    ## (the 100 comes from `prediction_interval')
-    ## bind_cols turns it into a 100 x `runs' tibble;
-    ## then we take the `rowMeans()' to average out the data randomness.
-    conditional_coverage = bind_cols(conditional_coverage, .name_repair = "unique") |> rowMeans() |> list(),
+    conditional_coverage = {
+      list_rbind(conditional_coverage) |>
+        group_by(X) |>
+        summarise(conditional_coverage = mean(conditional_coverage)) |>
+        list()
+    },
     conditional_leng = {
       list_rbind(conditional_leng) |>
         group_by(bin) |> # Mean over the data randomness
