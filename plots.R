@@ -69,3 +69,20 @@ plot_conditional_sd <- function(results_tibble) {
     scale_x_continuous(trans = "log2") +
     theme_minimal()
 }
+
+
+plot_conditional_mse <- function(results_tibble) {
+  results_tibble |>
+    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sqrt(mean((df$conditional_coverage - 0.9)^2)))) |>
+    ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
+    geom_line() +
+    facet_grid(~ model_name) +
+    labs(
+      title = "MSE(coverage) vs n for each Method and Model",
+      x = "n",
+      y = "MSE(coverage)",
+      color = "Method",
+      ) +
+    scale_x_continuous(trans = "log2") +
+    theme_minimal()
+}
