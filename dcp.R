@@ -3,10 +3,6 @@ library(isodistrreg)
 library(quantreg)
 
 dcp <- function(type, formula, data, split, alpha = 0.1) {
-  ## TODO <2024-05-22 Wed> Agree on interface for train-valid-test split
-  ## TODO <2024-05-24 Fri> Add verbosity via global option
-  ## TODO <2024-05-24 Fri> Keep coverage and leng together with the test samples
-  ## Nothing scrambles the data, so we can (and do in the scripts) recover the test points from knowing `split', but it'd be cleaner to keep track of the points in a different way.
   with(split(data), {
     data_train <- train
     data_valid <- valid
@@ -27,14 +23,12 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     leng <- diff(range(data_test$Y[coverage], na.rm = TRUE))
     
     ## Estimate conditional coverage as output of a logistic regression
-    conditional_coverage <- tidy(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test))
+    conditional_coverage <- tidy(suppressWarnings(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test)))
 
     ## Learn conditional length – basically data compression
-    conditional_leng <- dcp_leng(fit, data_test, threshold)
-    indices <- conditional_leng != -Inf
-    conditional_leng <- smooth.spline(x = data_test$X[indices], y = conditional_leng[indices])
+    conditional_leng <- data.frame(X = data_test$X, conditional_leng = dcp_leng(fit, data_test, threshold))
     
-    list(coverage = coverage,
+    list(coverage = mean(coverage),
       leng = leng,
       conditional_coverage = conditional_coverage,
       conditional_leng = conditional_leng)
@@ -126,7 +120,7 @@ dcp_fit.dr <- function(formula, data, ys) {
   x <- cbind(1, data[, formula[[3]]])
   ## TODO <2024-05-23 Thu> Use something other than `sapply'
   beta <- sapply(ys,
-    \(the_y) glm.fit(x, (y <= the_y), family = binomial(link = "logit"))$coefficients)
+    \(the_y) suppressWarnings(glm.fit(x, (y <= the_y), family = binomial(link = "logit"))$coefficients))
   fit <- list(beta = beta, ys = ys)
   class(fit) <- "dr"
   fit

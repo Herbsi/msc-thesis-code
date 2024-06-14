@@ -28,19 +28,6 @@ evaluate <- function(data_frame) {
     )
 }
 
-## Plotting --------------------------------------------------------------------
-         
-bin <- function(data, base, num_bins) {
-  ## TODO <2024-05-22 Wed> Currently, the final bin is odd.
-  ## Bins data into `num_bins'-many bins.
-  ## Each bin corresponds to a quantile bin of `base'.
-  ## This assumes that the rows of `data' and `base' correspond to the same objecs.
-  data |>
-    mutate(base_rank = rank(base, ties.method = "random")) |>
-    mutate(bin = floor((num_bins - 1) * base_rank / nrow(data)), .keep = "unused") |>
-    group_by(bin)
-}
-
 
 ## Simulation ------------------------------------------------------------------
 
@@ -66,6 +53,7 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
   }
 
   prediction_interval <- seq(0, 10, length.out = 100)
+  breaks <- seq(0, 10, length.out = 21)
 
   simulation_result <- replicate(runs, simplify = FALSE, expr = {
     data_tibble <- tibble(
@@ -79,10 +67,16 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
     
     with(method(Y ~ X, data_tibble, split, alpha_sig),
       tibble(
-        coverage = mean(coverage),
+        coverage = coverage,
         leng = leng,
         conditional_coverage = list(predict_from_tidy(conditional_coverage, prediction_interval)),
-        conditional_leng = list(predict(conditional_leng, prediction_interval)$y)))
+        conditional_leng = {
+          conditional_leng |>
+            mutate(bin = cut(X, breaks = breaks, ordered_result = TRUE)) |>
+            group_by(bin) |>
+            summarise(conditional_leng = mean(conditional_leng)) |>
+            list()
+        }))
   }) |>
   list_rbind() |>
   summarise(
@@ -93,7 +87,12 @@ run_simulation <- function(n, model_name, model, method_name, method, runs, alph
     ## bind_cols turns it into a 100 x `runs' tibble;
     ## then we take the `rowMeans()' to average out the data randomness.
     conditional_coverage = bind_cols(conditional_coverage, .name_repair = "unique") |> rowMeans() |> list(),
-    conditional_leng = bind_cols(conditional_leng, .name_repair = "unique") |> rowMeans() |> list()
+    conditional_leng = {
+      list_rbind(conditional_leng) |>
+        group_by(bin) |> # Mean over the data randomness
+        summarise(conditional_leng = mean(conditional_leng)) |>
+        list()
+    }
   )
 
   filename <- file.path(results_dir, str_c(n, model_name, method_name, sep = "_") |> str_c(".RData"))

@@ -36,10 +36,15 @@ plot_conditional_coverage <- function(results_tibble) {
 plot_conditional_leng <- function(results_tibble) {
   results_tibble |>
     unnest(conditional_leng) |>
-    mutate(X = rep(seq(0, 10, length.out = 100), nrow(results_tibble))) |>
+    mutate(X = map_dbl(bin, \(bin) {
+      unlist(strsplit(gsub("[^0-9.,-]", "", bin), ",")) |>
+        as.numeric() |>
+        mean()
+    })) |>
     ggplot(aes(x = X, y = conditional_leng, color = method_name)) +
     ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
+    geom_point() +
     facet_grid(n ~ model_name) +
     labs(title = "Leng by X for each combination of n, model, and method",
       x = "X",
