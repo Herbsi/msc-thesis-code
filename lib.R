@@ -150,7 +150,7 @@ theorem_3 <- function(runs = 500,
 merge_results <- function(n, ts) {
   df <- crossing(
     tibble(n = n),
-    tibble(model_name = c("D", "P", "NI", "S")),
+    tibble(model_name = c("D", "P", "NI", "S", "AR")),
     tibble(method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"))
   )
   files <- str_c("results/theorem-3-euler/", ts, "/",
@@ -160,11 +160,12 @@ merge_results <- function(n, ts) {
   df2 <- tibble()
   walk(files, \(f) {
     load(force(f), verbose = TRUE)
-    df2 <<- bind_rows(df2, tribble(~coverage, ~leng, ~conditional, simulation_result$coverage, simulation_result$leng, simulation_result$conditional))
+    df2 <<- bind_rows(df2, tribble(~coverage, ~leng, ~conditional_coverage, ~conditional_leng,
+      simulation_result$coverage, simulation_result$leng, simulation_result$conditional_coverage, simulation_result$conditional_leng))
   }
   )
 
-  results_tibble <- bind_cols(df, df2) |> mutate(conditional = map(conditional, ~ .x[[1]]))
+  results_tibble <- bind_cols(df, df2) |> mutate(conditional_coverage = map(conditional_coverage, ~ .x[[1]]), conditional_leng = map(conditional_leng, ~ .x[[1]]))
   save(results_tibble, file = str_c("results/theorem-3-euler/results_tibble", format(Sys.time(), "%Y%m%d%H%M%S"), ".RData"))
   results_tibble
 }
