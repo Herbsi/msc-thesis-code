@@ -56,9 +56,9 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     n_valid <- n / 4
     n_test <- n / 4
     
-    ind_train <- 1:n_train
-    ind_valid <- (n_train+1):(n_train+n_valid)
-    ind_test <- (n_train+n_valid+1):n
+    ind_train <- sort(sample(1:n, size = n_train))
+    ind_valid <- sort(sample((1:n)[-ind_train], size = n_valid))
+    ind_test <- (1:n)[-c(ind_train, ind_valid)]
     
     split <- function(df) {
       list(train = df[ind_train, , drop = FALSE],
