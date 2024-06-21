@@ -33,7 +33,9 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     conditional_coverage <- tidy(suppressWarnings(glm(coverage ~ X, family = binomial(link = "logit"), data = data_test)))
 
     ## Learn conditional length – basically data compression
-    conditional_leng <- data.frame(X = data_test$X, conditional_leng = dcp_leng(fit, data_test, threshold))
+    conditional_leng <- dcp_leng(fit, data_test, threshold)
+    conditional_leng[which(conditional_leng == -Inf)] <- NA
+    conditional_leng <- data.frame(X = data_test$X, conditional_leng = conditional_leng)
     
     list(coverage = mean(coverage),
       leng = leng,

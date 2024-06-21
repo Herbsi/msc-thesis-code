@@ -86,9 +86,9 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
           }),
           conditional_leng = list({
             conditional_leng |>
-              mutate(bin = cut(X, breaks = breaks, ordered_result = TRUE)) |>
+              mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE, ordered_result = TRUE)) |>
               group_by(bin) |> # Mean over the bin
-              summarise(conditional_leng = mean(conditional_leng))
+              summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
           })))
     }) |>
       list_rbind() |>
