@@ -133,6 +133,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
 theorem_3 <- function(runs = 500,
                       alpha_sig = 0.1,
                       n = 2^(5:16),
+                      method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"),
                       model_name = c("D", "P", "NI", "S", "AR"),
                       subdir = format(Sys.time(), "%Y%m%d")) {
   results_dir <- file.path("results", "theorem-3", subdir)
@@ -144,7 +145,7 @@ theorem_3 <- function(runs = 500,
     ## Create tibble with all combinations of `n', `model' and `method'
     tibble(n = n),
     tibble(model_name = model_name),
-    tibble(method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"))) |>
+    tibble(method_name = method_name)) |>
     mutate(compute = pmap(across(everything()), run_simulation)) |>
     unnest(compute)
 
