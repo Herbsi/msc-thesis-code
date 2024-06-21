@@ -125,10 +125,9 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
 theorem_3 <- function(runs = 500,
                       alpha_sig = 0.1,
                       n = 2^(5:16),
-                      model_name = c("D", "P", "NI", "S", "AR")) {
-  current_time <- format(Sys.time(), "%Y%m%d%H%M%S")
-
-  results_dir <- file.path("results", "theorem-3", current_time)
+                      model_name = c("D", "P", "NI", "S", "AR"),
+                      subdir = format(Sys.time(), "%Y%m%d")) {
+  results_dir <- file.path("results", "theorem-3", subdir)
   dir.create(results_dir)
 
   run_simulation <- make_simulation(runs, alpha_sig, results_dir)
