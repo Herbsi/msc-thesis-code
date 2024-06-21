@@ -67,14 +67,21 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
       )
     }
 
+    noise <- function(ind) {
+      noise <- rep(0, times = n)
+      noise[ind] <- runif(length(ind), -1e-6, 1e-6)
+      noise
+    }
+    
     prediction_interval <- seq(0, 10, length.out = 100)
     breaks <- seq(0, 10, length.out = 21)
 
     simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      data_tibble <- generate_data(n, model_name) |>  
+      data_tibble <- generate_data(n, model_name) |>
         mutate( # Add noise to training data.
-          X = X + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train)),
-          Y = Y + c(runif(n_train, -1e-6, 1e-6), rep(0, n - n_train)))
+          X = X + noise(ind_train),
+          Y = Y + noise(ind_train),
+          )
       
       with(method(Y ~ X, data_tibble, split, alpha_sig),
         tibble(
