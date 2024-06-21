@@ -53,13 +53,14 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     method <- method_list[[method_name]]
     
     n_train <- n / 2
-    n_valid <- n / 4
-    n_test <- n / 4
+    n_valid <- n / 2
+    n_test <- 8192
+    n <- n_train + n_valid + n_test
     
     ind_train <- sort(sample(1:n, size = n_train))
     ind_valid <- sort(sample((1:n)[-ind_train], size = n_valid))
     ind_test <- (1:n)[-c(ind_train, ind_valid)]
-    
+
     split <- function(df) {
       list(train = df[ind_train, , drop = FALSE],
         valid = df[ind_valid, , drop = FALSE],
