@@ -252,6 +252,6 @@ dcp_score.cp_loc <- function(fit, data) {
 
 dcp_leng.cp_loc <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
-  2 * pred$sig * threshold
+  2 * abs(pred$sig) * threshold
 }
 
