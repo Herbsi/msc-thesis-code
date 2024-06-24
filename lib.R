@@ -25,13 +25,14 @@ generate_data <- function(n, model_name) {
     "S" = tibble(
       X = runif(n, 0, 10),
       Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))),
-    "AR" = {
+    "AR(1)" = {
       X <- rep(0, times = n)
       X[1] <- runif(1, 0, 10)
       for (i in 2:n) {
-        X[i] <- 0.8 * X[i-1] + runif(1, -1, 1)
-        X[i] <- pmin(pmax(X[i], 0), 10)
+        X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
       }
+      X <- X + 5
+      X <- pmin(pmax(X, 0), 10)
       Y <- 2 * X + rnorm(n, 0, 2) # Simple linear relationship
       tibble(X = X, Y = Y) 
     })
@@ -113,7 +114,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
         conditional_leng = {
           list_rbind(conditional_leng) |>
             group_by(bin) |> 
-            summarise(conditional_leng = mean(conditional_leng)) |>
+            summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE)) |>
             list()
         }
       )
@@ -134,7 +135,7 @@ theorem_3 <- function(runs = 500,
                       alpha_sig = 0.1,
                       n = 2^(5:16),
                       method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"),
-                      model_name = c("D", "P", "NI", "S", "AR"),
+                      model_name = c("D", "P", "NI", "S", "AR(1)"),
                       subdir = format(Sys.time(), "%Y%m%d")) {
   results_dir <- file.path("results", "theorem-3", subdir)
   dir.create(results_dir)
