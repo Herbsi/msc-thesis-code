@@ -55,11 +55,11 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     n_train <- n / 2
     n_valid <- n / 2
     n_test <- 8192
-    n <- n_train + n_valid + n_test
+    n_total <- n_train + n_valid + n_test
     
-    ind_train <- sort(sample(1:n, size = n_train))
-    ind_valid <- sort(sample((1:n)[-ind_train], size = n_valid))
-    ind_test <- (1:n)[-c(ind_train, ind_valid)]
+    ind_train <- sort(sample(1:n_total, size = n_train))
+    ind_valid <- sort(sample((1:n_total)[-ind_train], size = n_valid))
+    ind_test <- (1:n_total)[-c(ind_train, ind_valid)]
 
     split <- function(df) {
       list(train = df[ind_train, , drop = FALSE],
@@ -69,7 +69,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     }
 
     noise <- function(ind) {
-      noise <- rep(0, times = n)
+      noise <- rep(0, times = n_total)
       noise[ind] <- runif(length(ind), -1e-6, 1e-6)
       noise
     }
@@ -78,7 +78,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     breaks <- seq(0, 10, length.out = 21)
 
     simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      data_tibble <- generate_data(n, model_name) |>
+      data_tibble <- generate_data(n_total, model_name) |>
         mutate( # Add noise to training data.
           X = X + noise(ind_train),
           Y = Y + noise(ind_train),
