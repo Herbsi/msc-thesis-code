@@ -84,8 +84,8 @@ dcp_fit <- function(type, formula, data, ...) {
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
-    "IDR" = dcp_fit.idrfit(formula, data, args$ys),
-    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$tau, args$ys),
+    "IDR" = dcp_fit.idrfit(formula, data),
+    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$tau),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -214,11 +214,8 @@ dcp_leng.dr <- function(fit, data, threshold) {
 
 ### IDR ------------------------------------------------------------------------
 
-dcp_fit.idrfit <- function(formula, data, ys) {
-  y <- data[[formula[[2]]]]
-  x <- data[, formula[[3]]]
-  fit <- idr(y, x)
-  fit$ys <- ys
+dcp_fit.idrfit <- function(formula, data) {
+  fit <- idr(data$Y, data[, "X"])
   fit
 }
 
@@ -227,19 +224,19 @@ dcp_predict.idrfit <- function(fit, data) {
 }
 
 dcp_score.idrfit <- function(fit, data) {
-  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
+  abs(pit(predict(fit, data), data$Y) - 0.5)
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  cdf(dcp_predict(fit, data), fit$ys) |>
-    apply(1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
+  cdf(predict(fit, data), data$Y) |>
+    apply(1, \(row) diff(range(data$Y[abs(row - 0.5) <= threshold])))
 }
 
 ### IDR* -----------------------------------------------------------------------
 
-dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, tau, ys) {
+dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, tau) {
   fit <- idr(data$Y, data[, "X"])
-  fit <- list(idrfit = fit, alpha_sig = alpha_sig, tau = tau, ys = ys)
+  fit <- list(idrfit = fit, alpha_sig = alpha_sig, tau = tau)
   class(fit) <- "idrfit_opt"
   fit
 }
@@ -265,10 +262,10 @@ dcp_score.idrfit_opt <- function(fit, data) {
 dcp_leng.idrfit_opt <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
   b_hat <- dcp_bhat(fit, pred)
-  cbind(b_hat, cdf(pred, fit$ys)) |>
+  cbind(b_hat, cdf(pred, data$Y)) |>
     apply(1,
       \(row) {
-        fit$ys[abs(row[-1] - row[1] - (1 - fit$alpha_sig) / 2) <= threshold] |>
+        data$Y[abs(row[-1] - row[1] - (1 - fit$alpha_sig) / 2) <= threshold] |>
           range() |>
           diff()
       })
