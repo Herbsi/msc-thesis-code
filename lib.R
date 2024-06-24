@@ -35,6 +35,17 @@ generate_data <- function(n, model_name) {
       X <- pmin(pmax(X, 0), 10)
       Y <- 2 * X + rnorm(n, 0, 2) # Simple linear relationship
       tibble(X = X, Y = Y) 
+    },
+    "AR(2)" = {
+      X <- rep(0, times = n)
+      X[c(1, 2)] <- runif(2, 0, 10)
+      for (i in 3:n) {
+        X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + runif(1, -1, 1)
+      }
+      X <- X + 5
+      X <- pmin(pmax(X, 0), 10)
+      Y <- 2 * X + rnorm(n, 0, 2)
+      tibble(X = X, Y = Y)
     })
 }
 
