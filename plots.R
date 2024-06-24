@@ -44,8 +44,7 @@ plot_conditional_leng <- function(results_tibble) {
     ggplot(aes(x = X, y = conditional_leng, color = method_name)) +
     ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
     geom_line() +
-    geom_point() +
-    facet_grid(n ~ model_name) +
+    facet_grid(model_name ~ n, scales = "free_y") +
     labs(title = "Leng by X for each combination of n, model, and method",
       x = "X",
       y = "Conditional Length",
@@ -60,7 +59,7 @@ plot_conditional_sd <- function(results_tibble) {
     mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sd(df$conditional_coverage))) |>
     ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
     geom_line() +
-    facet_grid(~ model_name) +
+    facet_grid(~ model_name, scales = "free_y") +
     labs(
       title = "MSE(coverage) vs n for each Method and Model",
       x = "n",
@@ -77,7 +76,7 @@ plot_conditional_mse <- function(results_tibble) {
     mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sqrt(mean((df$conditional_coverage - 0.9)^2)))) |>
     ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
     geom_line() +
-    facet_grid(~ model_name) +
+    facet_grid(~ model_name, scales = "free_y") +
     labs(
       title = "MSE(coverage) vs n for each Method and Model",
       x = "n",
