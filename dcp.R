@@ -19,7 +19,7 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
     tau <- seq(0.001, 0.999, length = 200)
     ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
     
-    fit <- dcp_fit(type, formula, data_train, tau = tau, ys = ys)
+    fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
 
     ## Calibrate model
     scores_valid <- dcp_score(fit, data_valid)
@@ -46,6 +46,10 @@ dcp <- function(type, formula, data, split, alpha = 0.1) {
 
 dcp_qr <- function(formula, data, split, alpha = 0.1) {
   dcp("QR", formula, data, split, alpha)
+}
+
+dcp_qr_opt <- function(formula, data, split, alpha = 0.1) {
+  dcp("QR*", formula, data, split, alpha)
 }
 
 dcp_dr <- function(formula, data, split, alpha = 0.1) {
@@ -75,7 +79,7 @@ dcp_fit <- function(type, formula, data, ...) {
   switch(type,
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
-    "QR*" = dcp_fit.rq_opt(formula, data),
+    "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
     "IDR" = dcp_fit.idrfit(formula, data, args$ys),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
@@ -87,6 +91,11 @@ dcp_fit <- function(type, formula, data, ...) {
 dcp_predict <- function(fit, data) {
   UseMethod("dcp_predict")
 }
+
+dcp_bhat <- function(fit, data) {
+  UseMethod("dcp_bhat")
+}
+
 dcp_score <- function(fit, data) {
   UseMethod("dcp_score")
 }
@@ -119,6 +128,48 @@ dcp_leng.rqs <- function(fit, data, threshold) {
 
 
 ### QR* ------------------------------------------------------------------------
+
+dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau) {
+  rq <- rq(formula, tau = tau, data = data)
+  
+  fit <- list(rq = rq, alpha_sig = alpha_sig)
+  class(fit) <- "rq_opt"
+  fit
+}
+
+dcp_predict.rq_opt <- function(fit, data) {
+  predict(fit$rq, newdata = data)
+}
+
+dcp_bhat.rq_opt <- function(fit, pred) {
+  b_grid <- fit$rq$tau[fit$rq$tau <= fit$alpha_sig]
+  target_tau <- b_grid + 1 - fit$alpha_sig
+
+  compute_b_hat <- function(row) {
+    leng <- approx(x = fit$rq$tau, y = row, xout = target_tau, rule = 2)$y - row[1:length(b_grid)]
+    b_grid[which.min(leng)]
+  }
+
+  apply(pred, 1, compute_b_hat)
+}
+
+dcp_score.rq_opt <- function(fit, data) {
+  pred <- dcp_predict(fit, data)
+  
+  b_hat <- dcp_bhat(fit, pred)
+  abs(rowMeans(pred <= data$Y) - b_hat - (1 - fit$alpha_sig) / 2)
+}
+
+dcp_leng.rq_opt <- function(fit, data, threshold) {
+  pred <- dcp_predict(fit, data)
+  b_hat <- dcp_bhat(fit, pred)
+
+  compute_leng <- function(row) {
+    row[-1][abs(fit$rq$tau - row[1] - (1 - fit$alpha_sig / 2)) <= threshold] |> range() |> diff()
+  }
+
+  apply(cbind(b_hat, pred), 1, compute_leng)
+}
 
 
 ### GLM-DR ---------------------------------------------------------------------

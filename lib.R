@@ -52,6 +52,7 @@ generate_data <- function(n, model_name) {
 
 make_simulation <- function(runs, alpha_sig, results_dir) {
   method_list <- list(QR = dcp_qr,
+    "QR*" = dcp_qr_opt,
     DR = dcp_dr,
     IDR = dcp_idr,
     CP_OLS = dcp_cp_ols,
