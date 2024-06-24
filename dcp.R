@@ -60,6 +60,10 @@ dcp_idr <- function(formula, data, split, alpha = 0.1) {
   dcp("IDR", formula, data, split, alpha)
 }
 
+dcp_idr_opt <- function(formula, data, split, alpha = 0.1) {
+  dcp("IDR*", formula, data, split, alpha)
+}
+
 dcp_idrbag <- function(formula, data, split, alpha = 0.1) {
   dcp("IDR-BAG", formula, data, split, alpha)
 }
@@ -81,6 +85,7 @@ dcp_fit <- function(type, formula, data, ...) {
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
     "IDR" = dcp_fit.idrfit(formula, data, args$ys),
+    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$tau, args$ys),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -145,12 +150,12 @@ dcp_bhat.rq_opt <- function(fit, pred) {
   b_grid <- fit$rq$tau[fit$rq$tau <= fit$alpha_sig]
   target_tau <- b_grid + 1 - fit$alpha_sig
 
-  compute_b_hat <- function(row) {
+  compute_bhat <- function(row) {
     leng <- approx(x = fit$rq$tau, y = row, xout = target_tau, rule = 2)$y - row[1:length(b_grid)]
     b_grid[which.min(leng)]
   }
 
-  apply(pred, 1, compute_b_hat)
+  apply(pred, 1, compute_bhat)
 }
 
 dcp_score.rq_opt <- function(fit, data) {
@@ -229,6 +234,46 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
   cdf(dcp_predict(fit, data), fit$ys) |>
     apply(1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
+
+### IDR* -----------------------------------------------------------------------
+
+dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, tau, ys) {
+  fit <- idr(data$Y, data[, "X"])
+  fit <- list(idrfit = fit, alpha_sig = alpha_sig, tau = tau, ys = ys)
+  class(fit) <- "idrfit_opt"
+  fit
+}
+
+dcp_predict.idrfit_opt <- function(fit, data) {
+  predict(fit$idrfit, data)
+}
+
+dcp_bhat.idrfit_opt <- function(fit, pred) {
+  b_grid <- fit$tau[fit$tau <= fit$alpha_sig]
+  target_tau <- b_grid + 1 - fit$alpha_sig
+
+  apply(qpred(pred, target_tau) - qpred(pred, b_grid),
+    1,
+    \(row) b_grid[which.min(row)])
+}
+
+dcp_score.idrfit_opt <- function(fit, data) {
+  pred <- dcp_predict(fit, data)
+  abs(pit(pred, data$Y) - dcp_bhat(fit, pred) - (1 - fit$alpha_sig) / 2)
+}
+
+dcp_leng.idrfit_opt <- function(fit, data, threshold) {
+  pred <- dcp_predict(fit, data)
+  b_hat <- dcp_bhat(fit, pred)
+  cbind(b_hat, cdf(pred, fit$ys)) |>
+    apply(1,
+      \(row) {
+        fit$ys[abs(row[-1] - row[1] - (1 - fit$alpha_sig) / 2) <= threshold] |>
+          range() |>
+          diff()
+      })
+}
+
 
 ### IDR-BAG --------------------------------------------------------------------
 

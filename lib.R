@@ -55,6 +55,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
     "QR*" = dcp_qr_opt,
     DR = dcp_dr,
     IDR = dcp_idr,
+    "IDR*" = dcp_idr_opt,
     CP_OLS = dcp_cp_ols,
     CP_LOC = dcp_cp_loc)
   
