@@ -64,7 +64,7 @@ generate_data <- function(n, model_name) {
 }
 
 
-make_simulation <- function(runs, alpha_sig, results_dir) {
+make_simulation_run <- function(runs, alpha_sig, results_dir) {
   method_list <- list(QR = dcp_qr,
     "QR*" = dcp_qr_opt,
     DR = dcp_dr,
@@ -149,7 +149,7 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
       )
 
     filename <- file.path(results_dir,
-      str_c(n, model_name, method_name, sep = "_") |> str_c(".RData"))
+      temp_result_filename(n, model_name, method_name))
     ## Save results to file
     save(simulation_result, file = filename)
 
@@ -159,43 +159,32 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
 }
 
 
+temp_result_filename <- function(n, model_name, method_name) {
+  str_c(str_c(n, model_name, method_name, sep = "_"), ".RData")
+}
 
-theorem_3 <- function(runs = 500,
-                      alpha_sig = 0.1,
-                      n = 2^(5:16),
-                      method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"),
-                      model_name = c("D", "P", "NI", "S", "AR(1)"),
-                      subdir = format(Sys.time(), "%Y%m%d")) {
-  results_dir <- file.path("results", "theorem-3", subdir)
-  dir.create(results_dir)
-
-  run_simulation <- make_simulation(runs, alpha_sig, results_dir)
-
-  results_tibble <- crossing(
-    ## Create tibble with all combinations of `n', `model' and `method'
-    tibble(n = n),
-    tibble(model_name = model_name),
-    tibble(method_name = method_name)) |>
-    mutate(compute = pmap(across(everything()), run_simulation)) |>
-    unnest(compute)
-
-  save(results_tibble, file = file.path(results_dir, "results_tibble.RData"))
-
-  results_tibble
+final_result_filename <- function() {
+  str_c("results_tibble", format(Sys.time(), "%H%M%S"), ".RData")
 }
 
 
-theorem_4 <- function(runs = 500,
-                      alpha_sig = 0.1,
-                      n = 2^(7:16),
-                      method_name = c("QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
-                      model_name = c("AR(1)", "S1", "S1_2", "S1_3"),
-                      subdir = format(Sys.time(), "%Y%m%d000000")) {
-  results_dir <- file.path("results", "theorem-4", subdir)
+run_experiment <- function(results_dir,
+                           model_name = c("D", "P", "NI", "S",
+                             "AR(1)", "AR(2)",
+                             "S1", "S1_2", "S1_3"),
+                           method_name = c("QR", "QR*",
+                             "DR",
+                             "IDR", "IDR*",
+                             "CP_OLS", "CP_LOC"),
+                           runs = 500,
+                           alpha_sig = 0.1,
+                           n = 2^(7:16)) {
+  results_dir <- file.path("results",
+    results_dir,
+    format(Sys.time(), "%Y%m%d%H%M%S"))
   dir.create(results_dir, recursive = TRUE)
-
-  run_simulation<- make_simulation(runs, alpha_sig, results_dir)
-
+  
+  run_simulation <- make_simulation_run(runs, alpha_sig, results_dir)
   results_tibble <- crossing(
     ## Create tibble with all combinations of `n', `model' and `method'
     tibble(n = n),
@@ -204,24 +193,28 @@ theorem_4 <- function(runs = 500,
     mutate(compute = pmap(across(everything()), run_simulation)) |>
     unnest(compute)
 
-  save(results_tibble, file = file.path(results_dir, "results_tibble.RData"))
+  save(results_tibble, file = file.path(results_dir, final_result_filename()))
 
   results_tibble
 }
 
 
-merge_results <- function(n, ts) {
-  df <- crossing(
-    tibble(n = n),
-    tibble(model_name = c("D", "P", "NI", "S", "AR")),
-    tibble(method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"))
-  )
-  files <- str_c("results/theorem-3-euler/", ts, "/",
-    str_c(df$n, df$model_name, df$method_name, sep = "_")) |>
-    str_c(".RData")
-
+merge_results <- function(results_dir,
+                          ts,
+                          model_name = c("D", "P", "NI", "S", "AR(1)", "AR(2)", "S1", "S1_2", "S1_3"),
+                          method_name = c("QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
+                          n = 2^(7:16)) {
+  results_dir <- file.path("results", results_dir, ts)
+  
+  df <- crossing(tibble(n = n),
+    tibble(model_name = model_name),
+    tibble(method_name = method_name))
+  
+  files <- file.path(results_dir, temp_result_filename(df$n, df$model_name, df$method_name))
+  print(files)
   df2 <- tibble()
   walk(files, \(f) {
+    print(str_c("Loading ", f))
     load(force(f), verbose = TRUE)
     df2 <<- bind_rows(df2, tribble(~coverage, ~leng, ~conditional_coverage,
       ~conditional_leng, simulation_result$coverage, simulation_result$leng,
@@ -229,12 +222,12 @@ merge_results <- function(n, ts) {
       simulation_result$conditional_leng))
   }
   )
-
+  
   results_tibble <- bind_cols(df, df2) |>
     mutate(conditional_coverage = map(conditional_coverage, ~ .x[[1]]),
       conditional_leng = map(conditional_leng, ~ .x[[1]]))
   save(results_tibble,
-    file = str_c("results/theorem-3-euler/results_tibble",
-      format(Sys.time(), "%Y%m%d%H%M%S"), ".RData"))
+    file = file.path(results_dir, final_result_filename()))
+  
   results_tibble
 }

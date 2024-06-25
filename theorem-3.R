@@ -1,11 +1,11 @@
 source("lib.R")
 source("plots.R")
 
-results_tibble <- theorem_3(
-  runs = 10,
-  alpha_sig = 0.1,
-  n = 2^(5:7),
-  model_name = c("D", "P", "NI", "S", "AR"))
+results_tibble_thm3 <- run_experiment("theorem-3",
+  model_name = c("D", "P", "NI", "S", "AR(1)", "AR(2)"),
+  method_name = c("QR", "DR", "IDR", "CP_OLS", "CP_LOC"),
+  runs = 1,
+  n = 2^(6:8))
 
 plot_unconditional(results_tibble)
 plot_conditional_coverage(results_tibble)

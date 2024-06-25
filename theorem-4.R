@@ -1,6 +1,10 @@
 source("lib.R")
 
-results_tibble <- theorem_4(runs = 5, n = 2^(5:7))
+results_tibble_thm4 <- run_experiment("theorem-4",
+  model_name = c("AR(1)", "S1", "S1_2", "S1_3"),
+  method_name = c("QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
+  runs = 5,
+  n = 2^(5:7))
 
 ## We have two results:
 ## - Asymptotic coverage
