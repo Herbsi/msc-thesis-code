@@ -118,11 +118,13 @@ make_simulation <- function(runs, alpha_sig, results_dir) {
           leng = leng,
           conditional_coverage = list({
             data.frame(X = prediction_interval,
-              conditional_coverage = predict_glm_from_tidy(conditional_coverage, prediction_interval))
+              conditional_coverage = predict_glm_from_tidy(conditional_coverage,
+              prediction_interval))
           }),
           conditional_leng = list({
             conditional_leng |>
-              mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE, ordered_result = TRUE)) |>
+              mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE,
+                ordered_result = TRUE)) |>
               group_by(bin) |> # Mean over the bin
               summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
           })))
@@ -196,12 +198,18 @@ merge_results <- function(n, ts) {
   df2 <- tibble()
   walk(files, \(f) {
     load(force(f), verbose = TRUE)
-    df2 <<- bind_rows(df2, tribble(~coverage, ~leng, ~conditional_coverage, ~conditional_leng,
-      simulation_result$coverage, simulation_result$leng, simulation_result$conditional_coverage, simulation_result$conditional_leng))
+    df2 <<- bind_rows(df2, tribble(~coverage, ~leng, ~conditional_coverage,
+      ~conditional_leng, simulation_result$coverage, simulation_result$leng,
+      simulation_result$conditional_coverage,
+      simulation_result$conditional_leng))
   }
   )
 
-  results_tibble <- bind_cols(df, df2) |> mutate(conditional_coverage = map(conditional_coverage, ~ .x[[1]]), conditional_leng = map(conditional_leng, ~ .x[[1]]))
-  save(results_tibble, file = str_c("results/theorem-3-euler/results_tibble", format(Sys.time(), "%Y%m%d%H%M%S"), ".RData"))
+  results_tibble <- bind_cols(df, df2) |>
+    mutate(conditional_coverage = map(conditional_coverage, ~ .x[[1]]),
+      conditional_leng = map(conditional_leng, ~ .x[[1]]))
+  save(results_tibble,
+    file = str_c("results/theorem-3-euler/results_tibble",
+      format(Sys.time(), "%Y%m%d%H%M%S"), ".RData"))
   results_tibble
 }

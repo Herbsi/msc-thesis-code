@@ -18,10 +18,8 @@ plot_unconditional <- function(results_tibble) {
 
 
 plot_conditional_coverage <- function(results_tibble) {
-  results_tibble |>
-    unnest(conditional_coverage) |>
-    ggplot(aes(x = X, y = conditional_coverage, color = method_name)) +
-    ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
+  plot_tibble <- unnest(results_tibble, conditional_coverage)
+  ggplot(plot_tibble, aes(x = X, y = conditional_coverage, color = method_name)) +
     geom_line() +
     facet_grid(n ~ model_name) +
     labs(title = "Coverage by X for each combination of n, model, and method",
@@ -34,15 +32,13 @@ plot_conditional_coverage <- function(results_tibble) {
 
 
 plot_conditional_leng <- function(results_tibble) {
-  results_tibble |>
-    unnest(conditional_leng) |>
+  plot_tibble <- unnest(results_tibble, conditional_coverage) |>
     mutate(X = map_dbl(bin, \(bin) {
       unlist(strsplit(gsub("[^0-9.,-]", "", bin), ",")) |>
         as.numeric() |>
         mean()
-    })) |>
-    ggplot(aes(x = X, y = conditional_leng, color = method_name)) +
-    ## geom_ribbon(aes(ymin = conditional_coverage - cc_std, ymax = conditional_coverage + cc_std, fill = method_name), alpha = 0.2) +
+    }))
+  ggplot(plot_tibble, aes(x = X, y = conditional_leng, color = method_name)) +
     geom_line() +
     facet_grid(model_name ~ n, scales = "free_y") +
     labs(title = "Leng by X for each combination of n, model, and method",
@@ -55,9 +51,9 @@ plot_conditional_leng <- function(results_tibble) {
 
 
 plot_conditional_sd <- function(results_tibble) {
-    results_tibble |>
-    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sd(df$conditional_coverage))) |>
-    ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
+    plot_tibble <- results_tibble |>
+      mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sd(df$conditional_coverage)))
+    ggplot(plot_tibble, aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
     geom_line() +
     facet_grid(~ model_name, scales = "free_y") +
     labs(
@@ -72,9 +68,9 @@ plot_conditional_sd <- function(results_tibble) {
 
 
 plot_conditional_mse <- function(results_tibble) {
-  results_tibble |>
-    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sqrt(mean((df$conditional_coverage - 0.9)^2)))) |>
-    ggplot(aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
+  plot_tibble <- results_tibble |>
+    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sqrt(mean((df$conditional_coverage - 0.9)^2))))
+  ggplot(plot_tibble,aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
     geom_line() +
     facet_grid(~ model_name, scales = "free_y") +
     labs(
