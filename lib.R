@@ -47,7 +47,7 @@ generate_data <- function(n, model_name) {
       Y <- 2 * X + rnorm(n, 0, 2)
       tibble(X = X, Y = Y)
     },
-    "S1" = { ## 0 < C1, C2 < ∞
+    "S1" = { ## 0 < C1, C2 < ∞, ie correct assumptions
       tibble(X = runif(n, 0, 10),
         Y = runif(n, (1 + X / 10), 2 * (1 + X / 10)),
         C1 = 1 / 2, C2 = 4)
@@ -170,6 +170,31 @@ theorem_3 <- function(runs = 500,
   dir.create(results_dir)
 
   run_simulation <- make_simulation(runs, alpha_sig, results_dir)
+
+  results_tibble <- crossing(
+    ## Create tibble with all combinations of `n', `model' and `method'
+    tibble(n = n),
+    tibble(model_name = model_name),
+    tibble(method_name = method_name)) |>
+    mutate(compute = pmap(across(everything()), run_simulation)) |>
+    unnest(compute)
+
+  save(results_tibble, file = file.path(results_dir, "results_tibble.RData"))
+
+  results_tibble
+}
+
+
+theorem_4 <- function(runs = 500,
+                      alpha_sig = 0.1,
+                      n = 2^(7:16),
+                      method_name = c("QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
+                      model_name = c("AR(1)", "S1", "S1_2", "S1_3"),
+                      subdir = format(Sys.time(), "%Y%m%d000000")) {
+  results_dir <- file.path("results", "theorem-4", subdir)
+  dir.create(results_dir, recursive = TRUE)
+
+  run_simulation<- make_simulation(runs, alpha_sig, results_dir)
 
   results_tibble <- crossing(
     ## Create tibble with all combinations of `n', `model' and `method'
