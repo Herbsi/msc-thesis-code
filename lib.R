@@ -11,34 +11,48 @@ source("dcp.R")
 
 ## Simulation ------------------------------------------------------------------
 
-generate_data <- function(n, model_name) {
-  switch(model_name,
-    "D" = tibble(
-      X = runif(n, 0, 10),
-      Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) + 10 * (X >= 5)) ,
-    "P" = tibble(
-      X = runif(n, 0, 10),
-      Y = rpois(n, pmin(pmax(X, 1), 6))),
-    "NI" = tibble(
-      X = runif(n, 0, 10),
-      Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) - 2 *(X > 7)),
-    "S" = tibble(
-      X = runif(n, 0, 10),
-      Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))),
-    "AR(1)" = {
-      X <- rep(0, times = n)
-      X[1] <- runif(1, 0, 10)
-      for (i in 2:n) {
-        X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
-      }
-      X <- X + 5
-      X <- pmin(pmax(X, 0), 10)
-      Y <- 2 * X + rnorm(n, 0, 2) # Simple linear relationship
-      tibble(X = X, Y = Y) 
+generate_data <- function(n_train, n_valid, n_test, model_name) {
+  generate_dataset <- switch(model_name,
+    "D" = \(n, ...) {
+      tibble(
+        X = runif(n, 0, 10),
+        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) + 10 * (X >= 5)
+      )
     },
-    "AR(2)" = {
+    "P" = \(n, ...) {
+      tibble(
+        X = runif(n, 0, 10),
+        Y = rpois(n, pmin(pmax(X, 1), 6))
+      )
+    },
+    "NI" = \(n, ...) {
+      tibble(
+        X = runif(n, 0, 10),
+        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) - 2 *(X > 7)
+      )
+    },
+    "S" = \(n, ...) {
+      tibble(
+        X = runif(n, 0, 10),
+        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))
+      )
+    },
+    "AR(1)" = {
+      \(n, X1, ...) {
+        X <- rep(0, times = n)
+        X[1] <- X1
+        for (i in 2:n) {
+          X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
+        }
+        X <- X + 5
+        X <- pmin(pmax(X, 0), 10)
+        Y <- 2 * X + rnorm(n, 0, 2) # Simple linear relationship
+        tibble(X = X, Y = Y)
+      }
+    } ,
+    "AR(2)" = \(n, X1, X2, ...) {
       X <- rep(0, times = n)
-      X[c(1, 2)] <- runif(2, 0, 10)
+      X[c(1, 2)] <- c(X1, X2)
       for (i in 3:n) {
         X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + runif(1, -1, 1)
       }
@@ -47,20 +61,28 @@ generate_data <- function(n, model_name) {
       Y <- 2 * X + rnorm(n, 0, 2)
       tibble(X = X, Y = Y)
     },
-    "S1" = { ## 0 < C1, C2 < ∞, ie correct assumptions
-      tibble(X = runif(n, 0, 10),
+    "S1" = \(n, ...) { ## 0 < C1, C2 < ∞, ie correct assumptions
+      tibble(
+        X = runif(n, 0, 10),
         Y = runif(n, (1 + X / 10), 2 * (1 + X / 10)),
         C1 = 1 / 2, C2 = 4)
     },
-    "S1_2" = { ## C1 = 0, 0 < C2 < ∞
-      tibble(X = runif(n, 0, 10),
-        Y = rbeta(n, shape1 = 2 + X / 10, shape2 = 2 + 2 * X / 10), C1 = 0,
+    "S1_2" = \(n) { ## C1 = 0, 0 < C2 < ∞
+      tibble(
+        X = runif(n, 0, 10),
+        Y = rbeta(n, shape1 = 2 + X / 10, shape2 = 2 + 2 * X / 10),
+        C1 = 0,
         C2 = 1)
     },
-    "S1_3" = { ## C1 = 0, C2 = ∞
+    "S1_3" = \(n) { ## C1 = 0, C2 = ∞
       tibble(X = runif(n, 0, 10), Y = rnorm(n, mean = X), C1 = 0, C2 = Inf) 
-    }
-  )
+    })
+  ## Fix starting values of AR models
+  X1 <- runif(1, 0, 10)
+  X2 <- runif(1, 0, 10)
+  data_tibbles <- lapply(c(n_train, n_valid, n_test), \(n) generate_dataset(n, X1, X2))
+  names(data_tibbles) <- c("data_train", "data_valid", "data_test")
+  data_tibbles
 }
 
 
@@ -75,59 +97,44 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
   
   function(n, model_name, method_name) {
     writeLines(str_c(n, model_name, method_name, sep = " "))
-      
+    
     ## Setup
     set.seed(42 + n) # Ensures we generate the same data for every `n'
     method <- method_list[[method_name]]
-    
+
     n_train <- n / 2
     n_valid <- n / 2
     n_test <- 8192
-    n_total <- n_train + n_valid + n_test
-    
-    ind_train <- sort(sample(1:n_total, size = n_train))
-    ind_valid <- sort(sample((1:n_total)[-ind_train], size = n_valid))
-    ind_test <- (1:n_total)[-c(ind_train, ind_valid)]
 
-    split <- function(df) {
-      list(train = df[ind_train, , drop = FALSE],
-        valid = df[ind_valid, , drop = FALSE],
-        test = df[ind_test, , drop = FALSE]
-      )
-    }
-
-    noise <- function(ind) {
-      noise <- rep(0, times = n_total)
-      noise[ind] <- runif(length(ind), -1e-6, 1e-6)
-      noise
+    noise <- function(n) {
+      runif(n, -1e-6, 1e-6)
     }
     
     prediction_interval <- seq(0, 10, length.out = 100)
     breaks <- seq(0, 10, length.out = 21)
 
     simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      data_tibble <- generate_data(n_total, model_name) |>
-        mutate( # Add noise to training data.
-          X = X + noise(ind_train),
-          Y = Y + noise(ind_train),
-          )
-      
-      with(method(Y ~ X, data_tibble, split, alpha_sig),
-        tibble(
-          coverage = coverage,
-          leng = leng,
-          conditional_coverage = list({
-            data.frame(X = prediction_interval,
-              conditional_coverage = predict_glm_from_tidy(conditional_coverage,
-              prediction_interval))
-          }),
-          conditional_leng = list({
-            conditional_leng |>
-              mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE,
-                ordered_result = TRUE)) |>
-              group_by(bin) |> # Mean over the bin
-              summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
-          })))
+      with(generate_data(n_train, n_valid, n_test, model_name), {
+        data_train$X <- data_train$X + noise(n_train)
+        data_train$Y <- data_train$Y + noise(n_train)
+        
+        with(method(Y ~ X, data_train, data_valid, data_test, alpha_sig),
+          tibble(
+            coverage = coverage,
+            leng = leng,
+            conditional_coverage = list({
+              data.frame(X = prediction_interval,
+                conditional_coverage = predict_glm_from_tidy(conditional_coverage,
+                  prediction_interval))
+            }),
+            conditional_leng = list({
+              conditional_leng |>
+                mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE,
+                  ordered_result = TRUE)) |>
+                group_by(bin) |> # Mean over the bin
+                summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
+            })))
+      })
     }) |>
       list_rbind() |>
       summarise(
@@ -145,8 +152,7 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
             group_by(bin) |> 
             summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE)) |>
             list()
-        }
-      )
+        })
 
     filename <- file.path(results_dir,
       temp_result_filename(n, model_name, method_name))

@@ -13,71 +13,65 @@ predict_glm_from_tidy <- function(tidy_glm, newdata) {
 }
 
 
-dcp <- function(type, formula, data, split, alpha = 0.1) {
-  with(split(data), {
-    data_train <- train
-    data_valid <- valid
-    data_test <- test
+dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
+  ## Fit model
+  tau <- seq(0.001, 0.999, length = 200)
+  ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
 
-    ## Fit model
-    tau <- seq(0.001, 0.999, length = 200)
-    ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
+  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
 
-    fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
+  ## Calibrate model
+  scores_valid <- dcp_score(fit, data_valid)
+  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)),
+    1))
 
-    ## Calibrate model
-    scores_valid <- dcp_score(fit, data_valid)
-    threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)),
-      1))
+  ## Estimate coverage
+  coverage <- dcp_score(fit, data_test) <= threshold
+  leng <- diff(range(data_test$Y[coverage], na.rm = TRUE))
 
-    ## Estimate coverage
-    coverage <- dcp_score(fit, data_test) <= threshold
-    leng <- diff(range(data_test$Y[coverage], na.rm = TRUE))
+  ## Estimate conditional coverage as output of a logistic regression
+  conditional_coverage <- tidy(suppressWarnings(glm(coverage ~ X, family = binomial(link = "logit"),
+    data = data_test)))
 
-    ## Estimate conditional coverage as output of a logistic regression
-    conditional_coverage <- tidy(suppressWarnings(glm(coverage ~ X, family = binomial(link = "logit"),
-      data = data_test)))
+  ## Learn conditional length – basically data compression
+  conditional_leng <- dcp_leng(fit, data_test, threshold)
+  conditional_leng[which(conditional_leng == -Inf)] <- NA
+  conditional_leng <- data.frame(X = data_test$X, conditional_leng = conditional_leng)
 
-    ## Learn conditional length – basically data compression
-    conditional_leng <- dcp_leng(fit, data_test, threshold)
-    conditional_leng[which(conditional_leng == -Inf)] <- NA
-    conditional_leng <- data.frame(X = data_test$X, conditional_leng = conditional_leng)
-
-    list(coverage = mean(coverage), leng = leng, conditional_coverage = conditional_coverage,
-      conditional_leng = conditional_leng)
-  })
+  list(coverage = mean(coverage), leng = leng, conditional_coverage = conditional_coverage,
+    conditional_leng = conditional_leng)
 }
 
-dcp_qr <- function(formula, data, split, alpha = 0.1) {
-  dcp("QR", formula, data, split, alpha)
+dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("QR", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_qr_opt <- function(formula, data, split, alpha = 0.1) {
-  dcp("QR*", formula, data, split, alpha)
+dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("QR*", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_dr <- function(formula, data, split, alpha = 0.1) {
-  dcp("DR", formula, data, split, alpha)
+dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("DR", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_idr <- function(formula, data, split, alpha = 0.1) {
-  dcp("IDR", formula, data, split, alpha)
+dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("IDR", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_idr_opt <- function(formula, data, split, alpha = 0.1) {
-  dcp("IDR*", formula, data, split, alpha)
+dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("IDR*", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_idrbag <- function(formula, data, split, alpha = 0.1) {
-  dcp("IDR-BAG", formula, data, split, alpha)
+dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_cp_ols <- function(formula, data, split, alpha = 0.1) {
-  dcp("CP-OLS", formula, data, split, alpha)
+dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha)
 }
 
-dcp_cp_loc <- function(formula, data, split, alpha = 0.1) {
-  dcp("CP-LOC", formula, data, split, alpha)
+dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
+  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha)
 }
 
 ### Fit
