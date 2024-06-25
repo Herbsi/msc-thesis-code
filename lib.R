@@ -46,7 +46,21 @@ generate_data <- function(n, model_name) {
       X <- pmin(pmax(X, 0), 10)
       Y <- 2 * X + rnorm(n, 0, 2)
       tibble(X = X, Y = Y)
-    })
+    },
+    "S1" = { ## 0 < C1, C2 < ∞
+      tibble(X = runif(n, 0, 10),
+        Y = runif(n, (1 + X / 10), 2 * (1 + X / 10)),
+        C1 = 1 / 2, C2 = 4)
+    },
+    "S1_2" = { ## C1 = 0, 0 < C2 < ∞
+      tibble(X = runif(n, 0, 10),
+        Y = rbeta(n, shape1 = 2 + X / 10, shape2 = 2 + 2 * X / 10), C1 = 0,
+        C2 = 1)
+    },
+    "S1_3" = { ## C1 = 0, C2 = ∞
+      tibble(X = runif(n, 0, 10), Y = rnorm(n, mean = X), C1 = 0, C2 = Inf) 
+    }
+  )
 }
 
 
