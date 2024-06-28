@@ -50,6 +50,7 @@ generate_data <- function(n_train, n_valid, n_test, model_name) {
         tibble(X = X, Y = Y)
       }
     } ,
+    
     "AR(2)" = \(n, X1, X2, ...) {
       X <- rep(0, times = n)
       X[c(1, 2)] <- c(X1, X2)
