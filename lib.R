@@ -197,6 +197,28 @@ run_experiment <- function(results_dir,
 }
 
 
+## Summaries --------------------------------------------------------------------
+
+conditional_calc <- function(column, fn) {
+  function(results_tibble, new_name, alpha_sig = 0.1) {
+    results_tibble |>
+      mutate({{ new_name }} := map2_dbl({{ column }}, alpha_sig, fn))
+  }
+}
+
+conditional_coverage_mse <- conditional_calc(conditional_coverage,
+  \(df, alpha_sig) sqrt(mean((df$conditional_coverage - (1 - alpha_sig))^2)))
+
+conditional_coverage_mae <- conditional_calc(conditional_coverage,
+  \(df, alpha_sig) mean(abs(df$conditional_coverage - (1 - alpha_sig))^2))
+
+conditional_coverage_sd <- conditional_calc(conditional_coverage,
+  \(df, alpha_sig) sd(df$conditional_coverage))
+
+conditional_leng_sd <- conditional_calc(conditional_leng,
+  \(df, alpha_sig) sd(df$conditional_leng))
+  
+
 ## Helpers ----------------------------------------------------------------------
 
 temp_result_filename <- function(n, model_name, method_name) {
