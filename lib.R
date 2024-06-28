@@ -166,15 +166,6 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
 }
 
 
-temp_result_filename <- function(n, model_name, method_name) {
-  str_c(str_c(n, model_name, method_name, sep = "_"), ".RData")
-}
-
-final_result_filename <- function() {
-  str_c("results_tibble", format(Sys.time(), "%H%M%S"), ".RData")
-}
-
-
 run_experiment <- function(results_dir,
                            model_name = c("D", "P", "NI", "S",
                              "AR(1)", "AR(2)",
@@ -206,6 +197,18 @@ run_experiment <- function(results_dir,
 }
 
 
+## Helpers ----------------------------------------------------------------------
+
+temp_result_filename <- function(n, model_name, method_name) {
+  str_c(str_c(n, model_name, method_name, sep = "_"), ".RData")
+}
+
+
+final_result_filename <- function() {
+  str_c("results_tibble", format(Sys.time(), "%H%M%S"), ".RData")
+}
+
+
 merge_results <- function(results_dir,
                           ts,
                           model_name = c("D", "P", "NI", "S", "AR(1)", "AR(2)", "S1", "S1_2", "S1_3"),
@@ -218,7 +221,6 @@ merge_results <- function(results_dir,
     tibble(method_name = method_name))
   
   files <- file.path(results_dir, temp_result_filename(df$n, df$model_name, df$method_name))
-  print(files)
   df2 <- tibble()
   walk(files, \(f) {
     print(str_c("Loading ", f))
@@ -238,3 +240,15 @@ merge_results <- function(results_dir,
   
   results_tibble
 }
+
+
+make_values_filter <- function(values) {
+  function(data, column = model_name, .by = NULL, .preserve = FALSE) {
+    data |>
+      filter({{ column }} %in% force(values), .by = .by, .preserve = .preserve)
+  }
+}
+
+filter_independent <- make_values_filter(c("D", "P", "NI", "S"))
+filter_dependent <- make_values_filter(c("AR(1)", "AR(2)"))
+filter_thm4 <- make_values_filter(c("S1", "S1_2", "S1_3"))
