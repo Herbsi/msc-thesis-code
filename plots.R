@@ -88,21 +88,42 @@ plot_conditional_leng <- function(results_tibble) {
 }
 
 
+## Summaries --------------------------------------------------------------------
+
+plot_conditional_coverage_mse <- function(results_tibble) {
+  results_tibble |>
+    conditional_coverage_mse(cc_mse) |>
+    ggplot(aes(y = cc_mse)) +
+    geom_unconditional(title = "MSE(coverage - 0.9) vs n for each Method and Model",
+      y = "MSE(coverage - 0.9)")
 }
 
 
-plot_conditional_mse <- function(results_tibble) {
-  plot_tibble <- results_tibble |>
-    mutate(conditional_coverage = map_dbl(conditional_coverage, \(df) sqrt(mean((df$conditional_coverage - 0.9)^2))))
-  ggplot(plot_tibble,aes(x = n, y = conditional_coverage, color = method_name, group = method_name)) +
-    geom_line() +
-    facet_grid(~ model_name, scales = "free_y") +
-    labs(
-      title = "MSE(coverage) vs n for each Method and Model",
-      x = "n",
-      y = "MSE(coverage)",
-      color = "Method",
-      ) +
-    scale_x_continuous(trans = "log2") +
-    theme_minimal()
+plot_conditional_coverage_mae <- function(results_tibble) {
+  results_tibble |>
+    conditional_coverage_mae(cc_mae) |>
+    ggplot(aes(y = cc_mae)) +
+    geom_unconditional(title = "MAE(coverage - 0.9) vs n for each Method and Model",
+      y = "MAE(coverage - 0.9)")
+}
+
+
+plot_conditional_coverage_sd <- function(results_tibble) {
+  results_tibble |>
+    conditional_coverage_sd(cc_sd) |>
+    ggplot(aes(y = cc_sd)) +
+    geom_unconditional(
+      title = "sd(conditional coverage) vs n for each Method and Model",
+      y = "sd(conditional coverage)")
+}
+
+
+plot_conditional_leng_sd <- function(results_tibble) {
+  results_tibble |>
+    conditional_leng_sd(cc_sd) |>
+    ggplot(aes(y = cc_sd)) +
+    geom_unconditional(
+      title = "sd(conditional length) vs n for each Method and Model",
+      y = "sd(conditional length)",
+      scales = "free_y")
 }
