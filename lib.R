@@ -68,14 +68,14 @@ generate_data <- function(n_train, n_valid, n_test, model_name) {
         Y = runif(n, (1 + X / 10), 2 * (1 + X / 10)),
         C1 = 1 / 2, C2 = 4)
     },
-    "S1_2" = \(n) { ## C1 = 0, 0 < C2 < ∞
+    "S1_2" = \(n, ...) { ## C1 = 0, 0 < C2 < ∞
       tibble(
         X = runif(n, 0, 10),
         Y = rbeta(n, shape1 = 2 + X / 10, shape2 = 2 + 2 * X / 10),
         C1 = 0,
         C2 = 1)
     },
-    "S1_3" = \(n) { ## C1 = 0, C2 = ∞
+    "S1_3" = \(n, ...) { ## C1 = 0, C2 = ∞
       tibble(X = runif(n, 0, 10), Y = rnorm(n, mean = X), C1 = 0, C2 = Inf) 
     })
   ## Fix starting values of AR models
@@ -267,7 +267,7 @@ merge_results <- function(results_dir,
 make_values_filter <- function(values) {
   function(data, column = model_name, .by = NULL, .preserve = FALSE) {
     data |>
-      filter({{ column }} %in% force(values), .by = .by, .preserve = .preserve)
+      filter({{ column }} %in% force(values), .by = all_of(.by), .preserve = .preserve)
   }
 }
 
