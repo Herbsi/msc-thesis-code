@@ -81,9 +81,12 @@ generate_data <- function(n_train, n_valid, n_test, model_name) {
   ## Fix starting values of AR models
   X1 <- runif(1, 0, 10)
   X2 <- runif(1, 0, 10)
-  data_tibbles <- lapply(c(n_train, n_valid, n_test), \(n) generate_dataset(n, X1, X2))
-  names(data_tibbles) <- c("data_train", "data_valid", "data_test")
-  data_tibbles
+  n <- n_train + n_valid + n_test
+  data <- generate_dataset(n, X1, X2)
+  list(
+    data_train = data[1:n_train, ],
+    data_valid = data[(n_train+1):(n_train+n_valid), ],
+    data_test = data[(n_train+n_valid+1):n, ])
 }
 
 
