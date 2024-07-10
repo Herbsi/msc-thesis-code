@@ -11,82 +11,47 @@ source("dcp.R")
 
 ## Simulation ------------------------------------------------------------------
 
-generate_data <- function(n_train, n_valid, n_test, model_name) {
+r_model <- function(n, model_name, x) {
+  switch(model_name,
+    "D" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
+    "P" = rpois(n, pmin(pmax(x, 1), 6)),
+    "NI" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 * (x > 7),
+    "S" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
+    "AR(1)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
+    "AR(2)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
+    "S1" = runif(n, 1 + x / 10, 2 * (1 + x / 10)),
+    "S1_2" = rbeta(n, shape = 1 + x / 10, shape2 = 2),
+    "S1_3" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
+  )
+}
+
+
+generate_data <- function(n, model_name) {
   generate_dataset <- switch(model_name,
-    "D" = \(n, ...) {
-      tibble(
-        X = runif(n, 0, 10),
-        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) + 10 * (X >= 5)
-      )
-    },
-    "P" = \(n, ...) {
-      tibble(
-        X = runif(n, 0, 10),
-        Y = rpois(n, pmin(pmax(X, 1), 6))
-      )
-    },
-    "NI" = \(n, ...) {
-      tibble(
-        X = runif(n, 0, 10),
-        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6)) - 2 *(X > 7)
-      )
-    },
-    "S" = \(n, ...) {
-      tibble(
-        X = runif(n, 0, 10),
-        Y = rgamma(n, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))
-      )
-    },
     "AR(1)" = {
-      \(n, X1, ...) {
-        X <- rep(0, times = n)
-        X[1] <- X1
-        for (i in 2:n) {
-          X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
-        }
-        X <- X + 5
-        X <- pmin(pmax(X, 0), 10)
-        Y <- 2 * X + rnorm(n, 0, 2) # Simple linear relationship
-        tibble(X = X, Y = Y)
-      }
-    } ,
-    
-    "AR(2)" = \(n, X1, X2, ...) {
       X <- rep(0, times = n)
-      X[c(1, 2)] <- c(X1, X2)
+      X[1] <- runif(1, 0, 10)
+      for (i in 2:n) {
+        X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
+      }
+      X <- X + 5
+      X <- pmin(pmax(X, 0), 10)
+      Y <- r_model(n, "S", X)
+      tibble(X = X, Y = Y)
+    },
+    "AR(2)" = {
+      X <- rep(0, times = n)
+      X[c(1, 2)] <- runif(2, 0, 10)
       for (i in 3:n) {
         X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + runif(1, -1, 1)
       }
       X <- X + 5
       X <- pmin(pmax(X, 0), 10)
-      Y <- 2 * X + rnorm(n, 0, 2)
+      Y <- r_model(n, "S", X)
       tibble(X = X, Y = Y)
     },
-    "S1" = \(n, ...) { ## 0 < C1, C2 < ∞, ie correct assumptions
-      tibble(
-        X = runif(n, 0, 10),
-        Y = runif(n, (1 + X / 10), 2 * (1 + X / 10)),
-        C1 = 1 / 2, C2 = 4)
-    },
-    "S1_2" = \(n, ...) { ## C1 = 0, 0 < C2 < ∞
-      tibble(
-        X = runif(n, 0, 10),
-        Y = rbeta(n, shape1 = 2 + X / 10, shape2 = 2 + 2 * X / 10),
-        C1 = 0,
-        C2 = 1)
-    },
-    "S1_3" = \(n, ...) { ## C1 = 0, C2 = ∞
-      tibble(X = runif(n, 0, 10), Y = rnorm(n, mean = X), C1 = 0, C2 = Inf) 
-    })
-  ## Fix starting values of AR models
-  X1 <- runif(1, 0, 10)
-  X2 <- runif(1, 0, 10)
-  n <- n_train + n_valid + n_test
-  data <- generate_dataset(n, X1, X2)
-  list(
-    data_train = data[1:n_train, ],
-    data_valid = data[(n_train+1):(n_train+n_valid), ],
-    data_test = data[(n_train+n_valid+1):n, ])
+    tibble(X = runif(n, 0, 10), Y = r_model(n, model_name, X))
+  )
 }
 
 
@@ -98,74 +63,80 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     "IDR*" = dcp_idr_opt,
     CP_OLS = dcp_cp_ols,
     CP_LOC = dcp_cp_loc)
+
+
+  noise <- function(n) {
+    runif(n, -1e-6, 1e-6)
+  }
+
   
   function(n, model_name, method_name) {
     writeLines(str_c(n, model_name, method_name, sep = " "))
     
     ## Setup
-    set.seed(42 + n) # Ensures we generate the same data for every `n'
+    set.seed(42 + n) # Ensure we generate the same data for every `n'
     method <- method_list[[method_name]]
 
     n_train <- n / 2
     n_valid <- n / 2
-    n_test <- 8192
-
-    noise <- function(n) {
-      runif(n, -1e-6, 1e-6)
-    }
+    n_test <- 1
     
-    prediction_interval <- seq(0, 10, length.out = 100)
-    breaks <- seq(0, 10, length.out = 21)
-
     simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      with(generate_data(n_train, n_valid, n_test, model_name), {
-        data_train$X <- data_train$X + noise(n_train)
-        data_train$Y <- data_train$Y + noise(n_train)
-        
-        with(method(Y ~ X, data_train, data_valid, data_test, alpha_sig),
-          tibble(
-            coverage = coverage,
-            leng = leng,
-            conditional_coverage = list({
-              data.frame(X = prediction_interval,
-                conditional_coverage = predict_glm_from_tidy(conditional_coverage,
-                  prediction_interval))
-            }),
-            conditional_leng = list({
-              conditional_leng |>
-                mutate(bin = cut(X, breaks = breaks, include.lowest = TRUE,
-                  ordered_result = TRUE)) |>
-                group_by(bin) |> # Mean over the bin
-                summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
-            })))
-      })
-    }) |>
-      list_rbind() |>
-      summarise(
-        coverage = mean(coverage),
-        leng = mean(leng),
-        ## Mean conditional values over data randomness
-        conditional_coverage = {
-          list_rbind(conditional_coverage) |>
-            group_by(X) |>
-            summarise(conditional_coverage = mean(conditional_coverage)) |>
-            list()
-        },
-        conditional_leng = {
-          list_rbind(conditional_leng) |>
-            group_by(bin) |> 
-            summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE)) |>
-            list()
-        })
+      data_tibble <- generate_data(n_train + n_valid + n_test, model_name)
+      
+      data_train <- data_tibble[1:n_train, ]
+      data_valid <- data_tibble[(n_train+1):(n_train+n_valid), ]
+      data_test <- data_tibble[(n_train+n_valid+1):(n_train+n_valid+n_test), ]
 
-    filename <- file.path(results_dir,
-      temp_result_filename(n, model_name, method_name))
-    ## Save results to file
+      ## Add noise to training data
+      data_train$X <- data_train$X + noise(n_train)
+      data_train$Y <- data_train$Y + noise(n_train)
+      
+      ## 3 keys:
+      ## - X = (Xₙ₊₁; the test point)
+      ## - conditional_coverage (∈ {0, 1}; whether Y_{n+1} ∈ C(Xₙ₊₁))
+      ## - conditional_leng (∈ \mathbb{R}; an estimate of |C(Xₙ₊₁)|)
+      with(method(Y ~ X, data_train, data_valid, data_test, alpha_sig),
+        tibble(X = data_test[[1, "X"]],
+          conditional_coverage = conditional_coverage,
+          conditional_leng = conditional_leng)
+      )
+    }) |> list_rbind() 
+    
+    filename <- file.path(results_dir, temp_result_filename(n, model_name, method_name))
+    ## Save raw results to file
     save(simulation_result, file = filename)
 
     ## Return result
     simulation_result
-  }
+  } 
+}
+
+
+summarise_simulation <- function(simulation_result, X_min, X_max) {
+  X_grid <- seq(X_min, X_max, length.out = 100)
+  X_breaks <- seq(X_min, X_max, length.out = 21)
+
+  ## Summarise conditional coverage by fitting a logistic regression
+  cc_glm <- suppressWarnings(glm(conditional_coverage ~ X, data = simulation_result, family = binomial(link = "logit")))
+  conditional_coverage_list <- list(tibble(X = X_grid,
+    conditional_coverage = predict(cc_glm, newdata = data.frame(X = X_grid), type = "response")))
+
+  ## Summarise conditional length by binning
+  conditional_leng_binned <- simulation_result |>
+    mutate(bin = cut(X, breaks = X_breaks, include.lowest = TRUE, ordered_result = TRUE)) |>
+    group_by(bin) |>
+    summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE)) |>
+    list()
+
+  ## End result
+  simulation_result |>
+    summarise(
+      coverage = mean(conditional_coverage), # Unconditional coverage is just the mean coverage
+      leng = mean(conditional_leng), # Unconditional length also
+      conditional_coverage = conditional_coverage_list,
+      conditional_leng = conditional_leng_binned,
+      cc_glm = list(cc_glm))
 }
 
 
@@ -192,6 +163,10 @@ run_experiment <- function(results_dir,
     tibble(model_name = model_name),
     tibble(method_name = method_name)) |>
     mutate(compute = pmap(across(everything()), run_simulation)) |>
+    mutate(X_min = map_dbl(compute, \(sim_res) min(sim_res$X)),
+      X_max = map_dbl(compute, \(sim_res) max(sim_res$X))) |>
+    mutate(compute = map(compute, \(simulation_result)
+      summarise_simulation(simulation_result, min(X_min), max(X_max)))) |>
     unnest(compute)
 
   save(results_tibble, file = file.path(results_dir, final_result_filename()))
@@ -220,7 +195,7 @@ conditional_coverage_sd <- conditional_calc(conditional_coverage,
 
 conditional_leng_sd <- conditional_calc(conditional_leng,
   \(df, alpha_sig) sd(df$conditional_leng))
-  
+
 
 ## Helpers ----------------------------------------------------------------------
 
@@ -237,7 +212,7 @@ final_result_filename <- function() {
 merge_results <- function(results_dir,
                           ts,
                           model_name = c("D", "P", "NI", "S", "AR(1)", "AR(2)", "S1", "S1_2", "S1_3"),
-                          method_name = c("QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
+                          method_name = c("DR", "QR", "QR*", "IDR", "IDR*", "CP_OLS", "CP_LOC"),
                           n = 2^(7:16)) {
   results_dir <- file.path("results", results_dir, ts)
   

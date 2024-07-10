@@ -1,45 +1,20 @@
-library(broom)
 library(isodistrreg)
 library(quantreg)
-
-predict_glm_from_tidy <- function(tidy_glm, newdata) {
-  intercept <- tidy_glm |>
-    filter(term == "(Intercept)") |>
-    pull(estimate)
-  slope <- tidy_glm |>
-    filter(term == "X") |>
-    pull(estimate)
-  plogis(intercept + slope * newdata)
-}
 
 
 dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
   ## Fit model
   tau <- seq(0.001, 0.999, length = 200)
-  ys <- quantile(unique(c(data_train$Y, data_valid$Y)), tau)
+  ys <- quantile(unique(c(data_train$Y, data_valid$Y, data_test$Y)), tau)
 
   fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
-  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)),
-    1))
+  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
 
-  ## Estimate coverage
-  coverage <- dcp_score(fit, data_test) <= threshold
-  leng <- diff(range(data_test$Y[coverage], na.rm = TRUE))
-
-  ## Estimate conditional coverage as output of a logistic regression
-  conditional_coverage <- tidy(suppressWarnings(glm(coverage ~ X, family = binomial(link = "logit"),
-    data = data_test)))
-
-  ## Learn conditional length – basically data compression
-  conditional_leng <- dcp_leng(fit, data_test, threshold)
-  conditional_leng[which(conditional_leng == -Inf)] <- NA
-  conditional_leng <- data.frame(X = data_test$X, conditional_leng = conditional_leng)
-
-  list(coverage = mean(coverage), leng = leng, conditional_coverage = conditional_coverage,
-    conditional_leng = conditional_leng)
+  list(conditional_coverage = dcp_score(fit, data_test) <= threshold,
+    conditional_leng = dcp_leng(fit, data_test, threshold))
 }
 
 dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
@@ -125,7 +100,9 @@ dcp_score.rqs <- function(fit, data) {
 }
 
 dcp_leng.rqs <- function(fit, data, threshold) {
-  apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)], 1, \(row)
+  ## This uses that τ = F(Q(τ | X) | X), ie uses τ directly as the dcp_score of Q(τ | X)
+  ## and then takes as the length of the predicted interval the maximal accepted quantile minus the minimal accepted quantile
+  apply(as.matrix(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)]), 1, \(row)
     max(row) - min(row))
 }
 
