@@ -182,12 +182,7 @@ dcp_score.dr <- function(fit, data) {
 
 dcp_leng.dr <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
-  leng <- rep(NA, nrow(data))
-  for (i in 1:nrow(data)) {
-    tmp <- fit$ys[abs(pred[i, ] - 0.5) <= threshold]
-    leng[i] <- max(tmp) - min(tmp)
-  }
-  leng
+  apply(pred, 1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
 ### IDR
