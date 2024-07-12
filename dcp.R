@@ -58,8 +58,8 @@ dcp_fit <- function(type, formula, data, ...) {
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
-    "IDR" = dcp_fit.idrfit(formula, data),
-    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$tau),
+    "IDR" = dcp_fit.idrfit(formula, data, args$ys),
+    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$ys, args$tau),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -102,8 +102,9 @@ dcp_score.rqs <- function(fit, data) {
 dcp_leng.rqs <- function(fit, data, threshold) {
   ## This uses that τ = F(Q(τ | X) | X), ie uses τ directly as the dcp_score of Q(τ | X)
   ## and then takes as the length of the predicted interval the maximal accepted quantile minus the minimal accepted quantile
-  apply(as.matrix(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold)]), 1, \(row)
-    max(row) - min(row))
+  apply(dcp_predict(fit, data)[, (abs(fit$tau - 0.5) <= threshold), drop = FALSE],
+    1,
+    \(row) diff(range(row)))
 }
 
 
@@ -181,15 +182,15 @@ dcp_score.dr <- function(fit, data) {
 }
 
 dcp_leng.dr <- function(fit, data, threshold) {
-  pred <- dcp_predict(fit, data)
-  apply(pred, 1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
+  apply(dcp_predict(fit, data), 1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
 ### IDR
 ### ------------------------------------------------------------------------
 
-dcp_fit.idrfit <- function(formula, data) {
+dcp_fit.idrfit <- function(formula, data, ys) {
   fit <- idr(data$Y, data[, "X"])
+  fit$ys <- ys
   fit
 }
 
@@ -202,16 +203,17 @@ dcp_score.idrfit <- function(fit, data) {
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  cdf(predict(fit, data), data$Y) |>
-    apply(1, \(row) diff(range(data$Y[abs(row - 0.5) <= threshold])))
+  cdf(predict(fit, data), fit$ys) |>
+    apply(1, function(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
 ### IDR*
 ### -----------------------------------------------------------------------
 
-dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, tau) {
+dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau) {
   fit <- idr(data$Y, data[, "X"])
   fit <- list(idrfit = fit, alpha_sig = alpha_sig, tau = tau)
+  fit$ys <- ys
   class(fit) <- "idrfit_opt"
   fit
 }
@@ -235,9 +237,9 @@ dcp_score.idrfit_opt <- function(fit, data) {
 dcp_leng.idrfit_opt <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
   b_hat <- dcp_bhat(fit, pred)
-  cbind(b_hat, cdf(pred, data$Y)) |>
+  cbind(b_hat, cdf(pred, fit$ys)) |>
     apply(1, \(row) {
-      data$Y[abs(row[-1] - row[1] - (1 - fit$alpha_sig)/2) <= threshold] |>
+      fit$ys[abs(row[-1] - row[1] - (1 - fit$alpha_sig)/2) <= threshold] |>
         range() |>
         diff()
     })
