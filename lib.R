@@ -26,13 +26,18 @@ r_model <- function(n, model_name, x) {
 }
 
 
-generate_data <- function(n, model_name) {
-  generate_dataset <- switch(model_name,
+generate_data <- function(n_train, n_valid, n_test, model_name) {
+  n <- n_train + n_valid + n_test
+  switch(model_name,
     "AR(1)" = {
-      X <- rep(0, times = n)
+      X <- numeric(n)
+      steps <- runif(n - 1, -1, 1)
       X[1] <- runif(1, 0, 10)
-      for (i in 2:n) {
-        X[i] <- 0.95 * X[i-1] + runif(1, -1, 1)
+      for (i in 2:(n_train+n_valid)) {
+        X[i] <- 0.95 * X[i-1] + steps[i - 1]
+      }
+      for (i in (n_train+n_valid+(1:n_test))) {
+        X[i] <- 0.95 * X[n_train+n_valid] + steps[i - 1]
       }
       X <- X + 5
       X <- pmin(pmax(X, 0), 10)
@@ -40,10 +45,14 @@ generate_data <- function(n, model_name) {
       tibble(X = X, Y = Y)
     },
     "AR(2)" = {
-      X <- rep(0, times = n)
+      X <- numeric(n)
+      steps <- runif(n - 1, -1, 1)
       X[c(1, 2)] <- runif(2, 0, 10)
-      for (i in 3:n) {
-        X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + runif(1, -1, 1)
+      for (i in 3:(n_train+n_valid)) {
+        X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + steps[i - 2]
+      }
+      for (i in (n_train+n_valid+(1:n_test))) {
+        X[i] <- 0.95 * X[n_train+n_valid] - 0.94 * X[n_train+n_valid-1] + steps[i - 2]
       }
       X <- X + 5
       X <- pmin(pmax(X, 0), 10)
@@ -79,10 +88,10 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
 
     n_train <- n / 2
     n_valid <- n / 2
-    n_test <- 1
+    n_test <- 4096
     
     simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      data_tibble <- generate_data(n_train + n_valid + n_test, model_name)
+      data_tibble <- generate_data(n_train, n_valid, n_test, model_name)
       
       data_train <- data_tibble[1:n_train, ]
       data_valid <- data_tibble[(n_train+1):(n_train+n_valid), ]
@@ -93,14 +102,14 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
       data_train$Y <- data_train$Y + noise(n_train)
       
       ## 3 keys:
-      ## - X = (Xₙ₊₁; the test point)
-      ## - conditional_coverage (∈ {0, 1}; whether Y_{n+1} ∈ C(Xₙ₊₁))
-      ## - conditional_leng (∈ \mathbb{R}; an estimate of |C(Xₙ₊₁)|)
-      with(method(Y ~ X, data_train, data_valid, data_test, alpha_sig),
-        tibble(X = data_test[[1, "X"]],
-          conditional_coverage = conditional_coverage,
-          conditional_leng = conditional_leng)
-      )
+      ## - X = { Xₙ₊₁⁽ʲ⁾ : j = 1 … n_test } 
+      ## - conditional_coverage { 1{ Yₙ₊₁⁽ʲ⁾ ∈ C(Xₙ₊₁⁽ʲ⁾) : j = 1 … n_test })
+      ## - conditional_leng { |C(Xₙ₊₁⁽ʲ⁾)| : j = 1 … n_test } a list of estimates for C(Xₙ₊₁)
+      ## TODO 2024-07-12 Make this cleaner
+      res <- method(Y ~ X, data_train, data_valid, data_test, alpha_sig)
+      tibble(X = pull(data_test, X),
+        conditional_coverage = res$conditional_coverage,
+        conditional_leng = res$conditional_leng)
     }) |> list_rbind() 
     
     filename <- file.path(results_dir, temp_result_filename(n, model_name, method_name))
@@ -166,7 +175,8 @@ run_experiment <- function(results_dir,
     mutate(X_min = map_dbl(compute, \(sim_res) min(sim_res$X)),
       X_max = map_dbl(compute, \(sim_res) max(sim_res$X))) |>
     mutate(compute = map(compute, \(simulation_result)
-      summarise_simulation(simulation_result, min(X_min), max(X_max)))) |>
+      summarise_simulation(simulation_result, min(X_min), max(X_max))),
+      .keep = "unused") |>
     unnest(compute)
 
   save(results_tibble, file = file.path(results_dir, final_result_filename()))

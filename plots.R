@@ -76,7 +76,7 @@ plot_conditional_coverage <- function(results_tibble) {
 plot_conditional_leng <- function(results_tibble) {
   results_tibble |> unnest(conditional_leng) |>
     mutate(X = map_dbl(bin, \(bin) {
-      unlist(strsplit(gsub("[^0-9.,-]", "", bin), ",")) |>
+      unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
         as.numeric() |>
         mean()
     })) |>
