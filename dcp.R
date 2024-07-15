@@ -148,8 +148,7 @@ dcp_bhat.rq_opt <- function(fit, pred) {
   target_tau <- b_grid + 1 - fit$alpha_sig
 
   compute_bhat <- function(row) {
-    leng <- approx(x = fit$rq$tau, y = row, xout = target_tau, rule = 2)$y -
-                                                                       row[1:length(b_grid)]
+    leng <- approx(x = fit$rq$tau, y = row, xout = target_tau, rule = 2)$y - row[1:length(b_grid)]
     b_grid[which.min(leng)]
   }
 
@@ -158,8 +157,8 @@ dcp_bhat.rq_opt <- function(fit, pred) {
 
 dcp_score.rq_opt <- function(fit, data) {
   pred <- dcp_predict(fit, data)
-
   b_hat <- dcp_bhat(fit, pred)
+
   abs(rowMeans(pred <= data$Y) - b_hat - (1 - fit$alpha_sig)/2)
 }
 
@@ -168,11 +167,11 @@ dcp_leng.rq_opt <- function(fit, data, threshold) {
   b_hat <- dcp_bhat(fit, pred)
 
   compute_leng <- function(row) {
-    row[-1][abs(fit$rq$tau - row[1] - (1 - fit$alpha_sig/2)) <= threshold] |>
+    row[-1][abs(fit$rq$tau - row[1] - (1 - fit$alpha_sig)/2) <= threshold] |>
       range() |>
       diff()
   }
-  ## FIXME 2024-07-10 This probably needs to be changed in case `nrow(data) == 1'.
+
   apply(cbind(b_hat, pred), 1, compute_leng)
 }
 
@@ -219,11 +218,11 @@ dcp_predict.idrfit <- function(fit, data) {
 }
 
 dcp_score.idrfit <- function(fit, data) {
-  abs(pit(predict(fit, data), data$Y) - 0.5)
+  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
-  cdf(predict(fit, data), fit$ys) |>
+  cdf(dcp_predict(fit, data), fit$ys) |>
     apply(1, function(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
@@ -232,14 +231,13 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
 
 dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau) {
   fit <- idr(data$Y, data[, "X"])
-  fit <- list(idrfit = fit, alpha_sig = alpha_sig, tau = tau)
-  fit$ys <- ys
+  fit <- list(idrfit = fit, alpha_sig = alpha_sig, ys = ys, tau = tau)
   class(fit) <- "idrfit_opt"
   fit
 }
 
 dcp_predict.idrfit_opt <- function(fit, data) {
-  predict(fit$idrfit, data)
+  predict(fit$idrfit, data, digits = 10)
 }
 
 dcp_bhat.idrfit_opt <- function(fit, pred) {
@@ -256,13 +254,16 @@ dcp_score.idrfit_opt <- function(fit, data) {
 
 dcp_leng.idrfit_opt <- function(fit, data, threshold) {
   pred <- dcp_predict(fit, data)
+  cdf <- cdf(pred, fit$ys)
   b_hat <- dcp_bhat(fit, pred)
-  cbind(b_hat, cdf(pred, fit$ys)) |>
-    apply(1, \(row) {
-      fit$ys[abs(row[-1] - row[1] - (1 - fit$alpha_sig)/2) <= threshold] |>
-        range() |>
-        diff()
-    })
+
+  compute_leng <- function(row) {
+    fit$ys[abs(row[-1] - row[1] - (1 - fit$alpha_sig)/2) <= threshold] |>
+      range() |>
+      diff()
+  }
+
+  apply(cbind(b_hat, cdf), 1, compute_leng)
 }
 
 

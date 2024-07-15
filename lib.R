@@ -120,7 +120,7 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
       list_rbind()
 
-    elapsed <- difftime(Sys.time(), start, units = "auto")
+    elapsed <- difftime(Sys.time(), start, units = "secs")
     writeLines(str_c("Time:", elapsed, sep = " "))
 
 
