@@ -1,5 +1,5 @@
 logs/
 results/
 .Rhistory
-/theorem-3.R
-/theorem-4.R
+*.out
+*.err

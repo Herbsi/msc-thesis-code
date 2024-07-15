@@ -1,6 +1,6 @@
 {
   "R": {
-    "Version": "4.4.0",
+    "Version": "4.4.1",
     "Repositories": [
       {
         "Name": "CRAN",
@@ -1144,13 +1144,6 @@
         "zoo"
       ],
       "Hash": "c6fafa6cccb1e1dfe7f7d122efd6e6a7"
-    },
-    "logitnorm": {
-      "Package": "logitnorm",
-      "Version": "0.8.39",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "71d2221022019f5ae69ac21e55088a57"
     },
     "lubridate": {
       "Package": "lubridate",

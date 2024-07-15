@@ -14,6 +14,8 @@ source("dcp.R")
 
 r_model <- function(n, model_name, x) {
   switch(model_name,
+    "Linear" = 2 * x + rnorm(n),
+    "Normal" = rnorm(n, x, 1),
     "D" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) + 10 * (x >= 5),
     "P" = rpois(n, pmin(pmax(x, 1), 6)),
     "NI" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 * (x > 7),
@@ -185,7 +187,6 @@ run_experiment <- function(results_dir,
   ## Auxiliary values for summary
   X_min <- map_dbl(results_tibble$compute, \(sim_res) min(sim_res$X)) |> min()
   X_max <- map_dbl(results_tibble$compute, \(sim_res) max(sim_res$X)) |> max()
-  print(c(X_min, X_max))
   X_grid <- seq(X_min, X_max, length.out = 100)
   X_breaks <- seq(X_min, X_max, length.out = 21)
 
