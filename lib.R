@@ -1,8 +1,8 @@
 ## Packages --------------------------------------------------------------------
 library(data.table)
-library(dplyr)
+library(dplyr, warn.conflicts = FALSE)
 library(parallel)
-library(purrr)
+library(purrr, warn.conflicts = FALSE)
 library(stringr)
 library(tibble)
 library(tidyr)
