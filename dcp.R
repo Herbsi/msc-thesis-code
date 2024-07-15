@@ -1,6 +1,6 @@
+library(data.table)
 library(isodistrreg)
 library(quantreg)
-
 
 dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
   ## Fit model
@@ -13,8 +13,14 @@ dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
   scores_valid <- dcp_score(fit, data_valid)
   threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
 
-  list(conditional_coverage = dcp_score(fit, data_test) <= threshold,
-    conditional_leng = dcp_leng(fit, data_test, threshold))
+  conditional_coverage <- dcp_score(fit, data_test) <= threshold
+  conditional_leng <- suppressWarnings(dcp_leng(fit, data_test, threshold))
+  conditional_leng[conditional_leng == -Inf] <- NA
+
+  data.table(
+    X = data_test$X,
+    conditional_coverage = conditional_coverage,
+    conditional_leng = conditional_leng)
 }
 
 dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
@@ -90,7 +96,14 @@ dcp_fit.rqs <- function(formula, data, tau) {
 }
 
 dcp_predict.rqs <- function(fit, data) {
-  predict(fit, newdata = data)
+  pred <- predict(fit, newdata = data)
+  ## Make sure `pred' is a `nrow(data)' × `length(fit$tau)' matrix,
+  ## even if `nrow(data) == 1' so that pred becomes an atomic vector.
+  if (is.null(dim(pred))) {
+    t(as.matrix(pred))
+  } else {
+    pred
+  }
 }
 
 dcp_score.rqs <- function(fit, data) {
@@ -120,7 +133,14 @@ dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau) {
 }
 
 dcp_predict.rq_opt <- function(fit, data) {
-  predict(fit$rq, newdata = data)
+  pred <- predict(fit$rq, newdata = data)
+  ## Make sure `pred' is a `nrow(data)' × `length(fit$tau)' matrix,
+  ## even if `nrow(data) == 1' so that pred becomes an atomic vector.
+  if (is.null(dim(pred))) {
+    t(as.matrix(pred))
+  } else {
+    pred
+  }
 }
 
 dcp_bhat.rq_opt <- function(fit, pred) {
@@ -129,7 +149,7 @@ dcp_bhat.rq_opt <- function(fit, pred) {
 
   compute_bhat <- function(row) {
     leng <- approx(x = fit$rq$tau, y = row, xout = target_tau, rule = 2)$y -
-      row[1:length(b_grid)]
+                                                                       row[1:length(b_grid)]
     b_grid[which.min(leng)]
   }
 
@@ -152,7 +172,7 @@ dcp_leng.rq_opt <- function(fit, data, threshold) {
       range() |>
       diff()
   }
-
+  ## FIXME 2024-07-10 This probably needs to be changed in case `nrow(data) == 1'.
   apply(cbind(b_hat, pred), 1, compute_leng)
 }
 

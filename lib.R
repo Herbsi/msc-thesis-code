@@ -1,7 +1,8 @@
 ## Packages --------------------------------------------------------------------
+library(data.table)
 library(dplyr)
+library(parallel)
 library(purrr)
-library(scales)
 library(stringr)
 library(tibble)
 library(tidyr)
@@ -81,6 +82,7 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
   
   function(n, model_name, method_name) {
     writeLines(str_c(n, model_name, method_name, sep = " "))
+    start <- Sys.time()
     
     ## Setup
     set.seed(42 + n) # Ensure we generate the same data for every `n'
@@ -89,32 +91,41 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     n_train <- n / 2
     n_valid <- n / 2
     n_test <- 4096
-    
-    simulation_result <- replicate(runs, simplify = FALSE, expr = {
-      data_tibble <- generate_data(n_train, n_valid, n_test, model_name)
+
+    ## Function to perform a single run.
+    ## This should be fairly fast, as it gets called /a lot/.
+    single_run <- function() {
+      data_tibble <- as.data.table(generate_data(n_train, n_valid, n_test, model_name))
       
-      data_train <- data_tibble[1:n_train, ]
-      data_valid <- data_tibble[(n_train+1):(n_train+n_valid), ]
-      data_test <- data_tibble[(n_train+n_valid+1):(n_train+n_valid+n_test), ]
+      data_train <- data_tibble[1:n_train]
+      data_valid <- data_tibble[(n_train+1):(n_train+n_valid)]
+      data_test <- data_tibble[(n_train+n_valid+1):(n_train+n_valid+n_test)]
 
       ## Add noise to training data
-      data_train$X <- data_train$X + noise(n_train)
-      data_train$Y <- data_train$Y + noise(n_train)
+      data_train[, X := X + noise(n_train)]
+      data_train[, Y := Y + noise(n_train)]
       
-      ## 3 keys:
+      ## `data.table' with 3 columns:
       ## - X = { Xₙ₊₁⁽ʲ⁾ : j = 1 … n_test } 
       ## - conditional_coverage { 1{ Yₙ₊₁⁽ʲ⁾ ∈ C(Xₙ₊₁⁽ʲ⁾) : j = 1 … n_test })
       ## - conditional_leng { |C(Xₙ₊₁⁽ʲ⁾)| : j = 1 … n_test } a list of estimates for C(Xₙ₊₁)
-      ## TODO 2024-07-12 Make this cleaner
-      res <- method(Y ~ X, data_train, data_valid, data_test, alpha_sig)
-      tibble(X = pull(data_test, X),
-        conditional_coverage = res$conditional_coverage,
-        conditional_leng = res$conditional_leng)
-    }) |> list_rbind() 
-    
-    filename <- file.path(results_dir, temp_result_filename(n, model_name, method_name))
+      method(Y ~ X, data_train, data_valid, data_test, alpha_sig)
+    }
+
+    num_cores <- detectCores() - 1
+
+    ## Perform the different runs in parallel.
+    simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
+      list_rbind()
+
+    elapsed <- difftime(Sys.time(), start, units = "auto")
+    writeLines(str_c("Time:", elapsed, sep = " "))
+
+
     ## Save raw results to file
+    filename <- file.path(results_dir, temp_result_filename(n, model_name, method_name))
     save(simulation_result, file = filename)
+
 
     ## Return result
     simulation_result
@@ -122,29 +133,27 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
 }
 
 
-summarise_simulation <- function(simulation_result, X_min, X_max) {
-  X_grid <- seq(X_min, X_max, length.out = 100)
-  X_breaks <- seq(X_min, X_max, length.out = 21)
-
+summarise_simulation <- function(simulation_result, X_grid, X_breaks) {
   ## Summarise conditional coverage by fitting a logistic regression
   cc_glm <- suppressWarnings(glm(conditional_coverage ~ X, data = simulation_result, family = binomial(link = "logit")))
-  conditional_coverage_list <- list(tibble(X = X_grid,
-    conditional_coverage = predict(cc_glm, newdata = data.frame(X = X_grid), type = "response")))
+  conditional_coverage_tibble <- tibble(
+    X = X_grid,
+   conditional_coverage = predict(cc_glm, newdata = data.frame(X = X_grid), type = "response"))
 
   ## Summarise conditional length by binning
   conditional_leng_binned <- simulation_result |>
     mutate(bin = cut(X, breaks = X_breaks, include.lowest = TRUE, ordered_result = TRUE)) |>
     group_by(bin) |>
-    summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE)) |>
-    list()
+    summarise(conditional_leng = mean(conditional_leng, na.rm = TRUE))
 
   ## End result
   simulation_result |>
     summarise(
       coverage = mean(conditional_coverage), # Unconditional coverage is just the mean coverage
-      leng = mean(conditional_leng), # Unconditional length also
-      conditional_coverage = conditional_coverage_list,
-      conditional_leng = conditional_leng_binned,
+      leng = mean(conditional_leng, na.rm = TRUE), # Unconditional length also
+      ## ‘Summarise’ more-complex objects by nesting them into a list.
+      conditional_coverage = list(conditional_coverage_tibble),
+      conditional_leng = list(conditional_leng_binned),
       cc_glm = list(cc_glm))
 }
 
@@ -171,11 +180,23 @@ run_experiment <- function(results_dir,
     tibble(n = n),
     tibble(model_name = model_name),
     tibble(method_name = method_name)) |>
-    mutate(compute = pmap(across(everything()), run_simulation)) |>
-    mutate(X_min = map_dbl(compute, \(sim_res) min(sim_res$X)),
-      X_max = map_dbl(compute, \(sim_res) max(sim_res$X))) |>
-    mutate(compute = map(compute, \(simulation_result)
-      summarise_simulation(simulation_result, min(X_min), max(X_max))),
+    mutate(compute = pmap(across(everything()), run_simulation))
+
+  ## Auxiliary values for summary
+  X_min <- map_dbl(results_tibble$compute, \(sim_res) min(sim_res$X)) |> min()
+  X_max <- map_dbl(results_tibble$compute, \(sim_res) max(sim_res$X)) |> max()
+  print(c(X_min, X_max))
+  X_grid <- seq(X_min, X_max, length.out = 100)
+  X_breaks <- seq(X_min, X_max, length.out = 21)
+
+  num_cores <- detectCores() - 1
+
+  results_tibble <- results_tibble |>
+    mutate(compute = mclapply(compute,
+      ## By design, all the X values are, more or less, in [0, 10].
+      ## To make plotting more convenient, we bin all simulation results the same, between the overall minimal and maximal test values observed.
+      \(simulation_result) summarise_simulation(simulation_result, X_grid, X_breaks),
+      mc.cores = num_cores),
       .keep = "unused") |>
     unnest(compute)
 
