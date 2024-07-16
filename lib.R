@@ -22,9 +22,24 @@ r_model <- function(n, model_name, x) {
     "S" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
     "AR(1)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
     "AR(2)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
-    "S1" = runif(n, 1 + x / 10, 2 * (1 + x / 10)),
-    "S1_2" = rbeta(n, shape = 1 + x / 10, shape2 = 2),
-    "S1_3" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
+    "Uniform" = runif(n),
+    "S1(Uniform)" = runif(n, 1 + x / 10, 2 + 2 * x / 10),
+    "S1(Beta)" = {
+      dbeta_S1 <- function(y) (dbeta(y, shape1 = 5, shape2 = 2 - x / 10) + 0.01) / 1.01
+      ## Do rejection sampling to draw from this density
+      n_rejection_sampling <- 100000
+      proposal <- runif(n_rejection_sampling) # Use Unif(0, 1) as proposal distribution.  Note that both Unif(0, 1) and Beta(5, 2 - x / 10) have support [0, 1].
+      targetDensity <- dbeta_S1(proposal)
+      maxDensity <- max(targetDensity, na.rm = TRUE)
+      accepted <- runif(n_rejection_sampling) < (targetDensity / maxDensity)
+
+      sample(proposal[accepted], size = n) # Take a random subsample of the accepted samples.
+    },
+    "S1(Irwin Hall)" = replicate(n, sum(runif(10 + floor(x)))),
+    "S1(Bound above)" = rbeta(n, shape1 = 5, shape2 = 1 - x / 10),
+    "S1(Bound above shifted)" = x / 10 + rbeta(n, shape1 = 5, shape2 = 1 - x / 10),
+    "S1(Bound above)_2" = rbeta(n, shape1 = 5, shape2 = 2 - x / 10),
+    "S1(No bounds)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
   )
 }
 
@@ -117,8 +132,9 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     num_cores <- detectCores() - 1
 
     ## Perform the different runs in parallel.
-    simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
-      list_rbind()
+    ## simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
+    simulation_result <- replicate(runs, single_run(), simplify = FALSE) |>
+      rbindlist()
 
     elapsed <- difftime(Sys.time(), start, units = "secs")
     writeLines(str_c("Time:", elapsed, sep = " "))
