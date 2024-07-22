@@ -289,39 +289,6 @@ dcp_leng.idrfit_opt <- function(fit, data, threshold) {
 }
 
 
-### IDR-BAG
-### --------------------------------------------------------------------
-
-dcp_fit.idrbag <- function(formula, data) {
-  y <- data$Y
-  x <- data[, "X"]
-  fit <- function(data) {
-    ## NOTE <2024-05-28 Tue>: Used arbitrary values for `b' and `p' here.  NOTE
-    ## <2024-05-28 Tue>: Chose small values; otherwise, it takes forever.  Also
-    ## didn't see much improvement
-    idrbag(y, x, newdata = data, b = 5, p = 0.8)
-  }
-  class(fit) <- "idrbag"
-  fit
-}
-
-dcp_predict.idrbag <- function(fit, data) {
-  fit(data)
-}
-
-dcp_score.idrbag <- function(fit, data) {
-  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
-}
-
-dcp_leng.idrbag <- function(fit, data, threshold) {
-  dcp_predict(fit, data) |>
-    map_dbl(~{
-      tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
-      max(tmp) - min(tmp)
-    })
-}
-
-
 ### CP-OLS
 ### ---------------------------------------------------------------------
 
