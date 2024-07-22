@@ -118,7 +118,8 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
 
     ## Perform the different runs in parallel.
     simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
-      list_rbind()
+      rbindlist() |>
+      as_tibble()
 
     elapsed <- difftime(Sys.time(), start, units = "secs")
     writeLines(str_c("Time:", elapsed, sep = " "))
