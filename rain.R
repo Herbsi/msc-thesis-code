@@ -1,4 +1,6 @@
+library(data.table)
 library(dplyr, warn.conflicts=FALSE)
+library(dtplyr)
 library(lubridate, warn.conflicts=FALSE)
 library(purrr, warn.conflicts=FALSE)
 library(tibble, warn.conflicts=FALSE)
@@ -60,7 +62,7 @@ summarise_analysis <- function(.data) {
 }
 
 process_data <- function(.data, key, debug = FALSE) {
-  ## print(key)
+  print(key)
   method_name <- if(debug) names(dcp_method_list)[1:2] else names(dcp_method_list)
   indices <- generate_sequential_indices(if(debug) 100 else nrow(.data))
   ## Generate all combinations of `method' to apply, `run' = 1 … 5 and corresponding `train', `valid' and `test' indices.
@@ -84,7 +86,8 @@ process_data <- function(.data, key, debug = FALSE) {
     rbindlist()
 }
 
-result_summarised <- precipitation |>
+
+result_summarised <- lazy_dt(precipitation) |>
   group_by(airport, horizon) |> # Do the same for every combination of `airport' and `horizon'
   group_modify(process_data, debug = TRUE) |> # `debug' gets passed to `process_data'.
   ## Since `process_data' returns a `data.frame', at this point we are still a grouped data frame
@@ -94,5 +97,7 @@ result_summarised <- precipitation |>
     average_leng = mean(average_leng),
     conditional_coverage_mse = mean(conditional_coverage_mse),
     conditional_leng_sd = mean(conditional_leng_sd)) |>
-  ungroup()
+  ungroup() |>
+  as_tibble()
+
 
