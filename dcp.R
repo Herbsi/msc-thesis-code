@@ -63,6 +63,14 @@ dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1) 
   dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha)
 }
 
+dcp_method_list <- list(CP_LOC = dcp_cp_loc,
+  CP_OLS = dcp_cp_ols,
+  DR = dcp_dr,
+  IDR = dcp_idr,
+  "IDR*" = dcp_idr_opt,
+  QR = dcp_qr,
+  "QR*" = dcp_qr_opt)
+
 ### Fit
 ### ------------------------------------------------------------------------
 
