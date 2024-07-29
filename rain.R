@@ -57,7 +57,7 @@ run_analysis <- function(.data, method_name, train_ind, valid_ind, test_ind) {
 }
 
 summarise_analysis <- function(.data) {
-  glm_form <- reformulate(termlabels =  names(precipitation)[-(1:4)], response = "conditional_coverage")
+  glm_form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "conditional_coverage")
   fm <- glm(glm_form, data = .data, family = binomial(link = "logit"))
   pred <- predict(fm, newdata = .data, type = "response")
   cc_mse <- sqrt(mean((pred - 0.9)^2))
