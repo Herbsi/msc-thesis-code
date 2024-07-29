@@ -39,12 +39,21 @@ generate_sequential_indices <- function(n) {
 }
 
 run_analysis <- function(.data, method_name, train_ind, valid_ind, test_ind) {
-  form <- reformulate(termlabels =  names(precipitation)[-(1:4)], response = "obs")
+  form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
   data_train <- as.data.table(.data)[train_ind, ]
   data_valid <- as.data.table(.data)[valid_ind, ]
   data_test <- as.data.table(.data)[test_ind, ]
+
+  ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
+  ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
+  varNames <- names(precipitation)[-c((1:4), 6)]
+
+  ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
+  ## increasing convex order on the remaining variables (group '2').
+  groups <- setNames(c(1, rep(2, 50)), varNames)
+  orders <- c("comp" = 1, "icx" = 2)
   
-  dcp_method_list[[method_name]](form, data_train, data_valid, data_test)
+  dcp_method_list[[method_name]](form, data_train, data_valid, data_test, alpha = 0.1, groups = groups, orders = orders)
 }
 
 summarise_analysis <- function(.data) {
