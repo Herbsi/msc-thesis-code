@@ -96,7 +96,7 @@ process_data <- function(.data, key, debug = FALSE) {
 }
 
 
-result_summarised <- lazy_dt(precipitation) |>
+precipitation_results_summarised <- lazy_dt(precipitation) |>
   group_by(airport, horizon) |> # Do the same for every combination of `airport' and `horizon'
   group_modify(process_data, debug = FALSE) |> # `debug' gets passed to `process_data'.
   ## Since `process_data' returns a `data.frame', at this point we are still a grouped data frame
@@ -109,4 +109,5 @@ result_summarised <- lazy_dt(precipitation) |>
   ungroup() |>
   as_tibble()
 
+save(precipitation_results_summarised, file = "results/precipitation/results.RData")
 
