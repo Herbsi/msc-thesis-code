@@ -1,7 +1,8 @@
 library(dplyr, warn.conflicts=FALSE)
 library(lubridate, warn.conflicts=FALSE)
-library(purrr)
-library(tibble)
+library(purrr, warn.conflicts=FALSE)
+library(tibble, warn.conflicts=FALSE)
+library(tidyr, warn.conflicts=FALSE)
 
 source("dcp.R")
 
@@ -19,9 +20,6 @@ incomplete_days <- precipitation |>
 precipitation <- precipitation |>
   filter(!(date %in% incomplete_days))
 
-
-## We have the following relation in the data (although floating point numbers don't make this obvious)
-## (`airport', `date') => `obs', ie `airport' and `date' determine `obs'
 
 train_valid_test <- function(n) {
   ## Equal train–validation split
@@ -43,35 +41,58 @@ run_analysis <- function(.data, method_name, train_ind, valid_ind, test_ind) {
   data_train <- as.data.table(.data)[train_ind, ]
   data_valid <- as.data.table(.data)[valid_ind, ]
   data_test <- as.data.table(.data)[test_ind, ]
-  dcp_method_list[[method_name]](form, data_train, data_valid, data_test) |>
-                                 ## NOTE 2024-07-29 Currently, we remove the data columns from the results to make them smaller.
-                                 select(starts_with("conditional"))
+  
+  dcp_method_list[[method_name]](form, data_train, data_valid, data_test)
 }
 
-precipitation |>
+summarise_analysis <- function(.data) {
+  glm_form <- reformulate(termlabels =  names(precipitation)[-(1:4)], response = "conditional_coverage")
+  fm <- glm(glm_form, data = .data, family = binomial(link = "logit"))
+  pred <- predict(fm, newdata = .data, type = "response")
+  cc_mse <- sqrt(mean((pred - 0.9)^2))
+  
+  .data |>
+    summarise(unconditional_coverage = mean(conditional_coverage),
+      average_leng = mean(conditional_leng, na.rm = TRUE),
+      conditional_coverage_mse = cc_mse,
+      conditional_leng_sd = sd(.data$conditional_leng, na.rm = TRUE)
+    )
+}
+
+process_data <- function(.data, key, debug = FALSE) {
+  ## print(key)
+  method_name <- if(debug) names(dcp_method_list)[1:2] else names(dcp_method_list)
+  indices <- generate_sequential_indices(if(debug) 100 else nrow(.data))
+  ## Generate all combinations of `method' to apply, `run' = 1 … 5 and corresponding `train', `valid' and `test' indices.
+  crossing(method_name = method_name, indices = indices) |>
+    mutate(run = rep(1:5, times = if(debug) 2 else length(dcp_method_list)), .before = indices) |>
+    unnest_wider(indices) |>
+    ## At this point, the tibble looks like:
+    ## method_name  run  train_ind  valid_ind  test_ind
+    ##   CP_OLS       1  <dbl [ ]>  <dbl [ ]>  <dbl [ ]>
+    ##   ...
+    ## For each such row, we …
+    pmap(\(method_name, run, train_ind, valid_ind, test_ind) {
+      with(summarise_analysis(run_analysis(.data, method_name, train_ind, valid_ind, test_ind)),
+        list(method_name = method_name, # … remember the method
+          unconditional_coverage = unconditional_coverage, # and the summarised performance metrics.
+          average_leng = average_leng,
+          conditional_coverage_mse = conditional_coverage_mse,
+          conditional_leng_sd = conditional_leng_sd)
+      )
+    }, .progress = TRUE) |> # We bind together the results of a single group into a data.table.
+    rbindlist()
+}
+
+result_summarised <- precipitation |>
   group_by(airport, horizon) |> # Do the same for every combination of `airport' and `horizon'
-  group_map(\(.data, key) {
-    print(key)
-    ## Generate all combinations of `method' to apply, `run' = 1 … 5 and corresponding `train', `valid' and `test' indices.
-    crossing(method_name = names(dcp_method_list), indices = generate_sequential_indices(100)) |>
-      mutate(run = rep(1:5, times = length(dcp_method_list)), .before = indices) |>
-      unnest_wider(indices) |>
-      ## At this point, the tibble looks like:
-      ## method_name  run  train_ind  valid_ind  test_ind
-      ##   CP_OLS       1  <dbl [ ]>  <dbl [ ]>  <dbl [ ]>
-      ##   ...
-      ## For each such row, we …
-      pmap(\(method_name, run, train_ind, valid_ind, test_ind) {
-        list(airport = key[[1, "airport"]], # … save the key, 
-          horizon = key[[1, "horizon"]],
-          method_name = method_name, # … the method
-          run = run, # … and the run (∈ {1, …, 5})
-          ## and we run the analysis on the current subset of the data.
-          ## We nest that analysis inside a list.
-          analysis = list(run_analysis(.data, method_name, train_ind, valid_ind, test_ind)))
-      },
-      ## First, we bind together the results of a single group into a data.table
-      .progress = TRUE) |> rbindlist()
-    ## The result of `group_map' is a list of data.tables, one for each group.
-  }) |> rbindlist() # We bind these together into one big data.table with columns `airport', `horizon', `method_name', `run', `analysis'
+  group_modify(process_data, debug = TRUE) |> # `debug' gets passed to `process_data'.
+  ## Since `process_data' returns a `data.frame', at this point we are still a grouped data frame
+  ## So we additionally group by `method_name' and then average over the five runs.
+  group_by(method_name, .add = TRUE) |>
+  summarise(unconditional_coverage = mean(unconditional_coverage),
+    average_leng = mean(average_leng),
+    conditional_coverage_mse = mean(conditional_coverage_mse),
+    conditional_leng_sd = mean(conditional_leng_sd)) |>
+  ungroup()
 

@@ -1,4 +1,4 @@
-library(data.table)
+library(data.table, warn.conflicts=FALSE)
 library(isodistrreg)
 library(purrr)
 library(quantreg)
