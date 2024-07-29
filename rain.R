@@ -72,11 +72,11 @@ summarise_analysis <- function(.data) {
 
 process_data <- function(.data, key, debug = FALSE) {
   print(key)
-  method_name <- if(debug) names(dcp_method_list)[1:2] else names(dcp_method_list)
-  indices <- generate_sequential_indices(if(debug) 100 else nrow(.data))
+  method_name <- if(debug) names(dcp_method_list) else names(dcp_method_list)
+  indices <- generate_sequential_indices(if(debug) 1000 else nrow(.data))
   ## Generate all combinations of `method' to apply, `run' = 1 … 5 and corresponding `train', `valid' and `test' indices.
   crossing(method_name = method_name, indices = indices) |>
-    mutate(run = rep(1:5, times = if(debug) 2 else length(dcp_method_list)), .before = indices) |>
+    mutate(run = rep(1:5, times = if(debug) 7 else length(dcp_method_list)), .before = indices) |>
     unnest_wider(indices) |>
     ## At this point, the tibble looks like:
     ## method_name  run  train_ind  valid_ind  test_ind
@@ -98,7 +98,7 @@ process_data <- function(.data, key, debug = FALSE) {
 
 result_summarised <- lazy_dt(precipitation) |>
   group_by(airport, horizon) |> # Do the same for every combination of `airport' and `horizon'
-  group_modify(process_data, debug = TRUE) |> # `debug' gets passed to `process_data'.
+  group_modify(process_data, debug = FALSE) |> # `debug' gets passed to `process_data'.
   ## Since `process_data' returns a `data.frame', at this point we are still a grouped data frame
   ## So we additionally group by `method_name' and then average over the five runs.
   group_by(method_name, .add = TRUE) |>
