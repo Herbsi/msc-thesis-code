@@ -3,7 +3,8 @@ library(isodistrreg)
 library(purrr)
 library(quantreg)
 
-dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
+dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  ## Remaining arguments `...' get passed on to `dcp_fit'.
   Y_var <- deparse(formula[[2]])
   X_vars <- all.vars(formula[[3]])
 
@@ -15,7 +16,7 @@ dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
   tau <- seq(0.001, 0.999, length = 200)
   ys <- quantile(unique(c(data_train[[Y_var]], data_valid[[Y_var]], data_test[[Y_var]])), tau)
 
-  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
+  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys, ...)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
@@ -31,36 +32,36 @@ dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
     conditional_leng = conditional_leng)
 }
 
-dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("QR", formula, data_train, data_valid, data_test, alpha)
+dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("QR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("QR*", formula, data_train, data_valid, data_test, alpha)
+dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("QR*", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("DR", formula, data_train, data_valid, data_test, alpha)
+dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("DR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR", formula, data_train, data_valid, data_test, alpha)
+dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR*", formula, data_train, data_valid, data_test, alpha)
+dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR*", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha)
+dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha)
+dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha)
+dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
 dcp_method_list <- list(CP_LOC = dcp_cp_loc,
@@ -80,8 +81,8 @@ dcp_fit <- function(type, formula, data, ...) {
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
-    "IDR" = dcp_fit.idrfit(formula, data, args$ys),
-    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$ys, args$tau),
+    "IDR" = dcp_fit.idrfit(formula, data, ys = args$ys, groups = args$groups, orders = args$orders),
+    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, ys = args$ys, tau = args$tau, groups = args$groups, orders = args$orders),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -228,11 +229,19 @@ dcp_leng.dr <- function(fit, data, threshold) {
 ### IDR
 ### ------------------------------------------------------------------------
 
-dcp_fit.idrfit <- function(formula, data, ys) {
+dcp_fit.idrfit <- function(formula, data, ys, groups = NULL, orders = NULL) {
   X_vars <- all.vars(formula[[3]])
   Y_var <- deparse(formula[[2]])
 
-  fit <- idr(data[[Y_var]], data[, ..X_vars])
+  if (is.null(groups)) {
+    groups <- setNames(rep(1, length(X_vars)), X_vars)
+  }
+
+  if (is.null(orders)) {
+    orders <- c("comp" = 1)
+  }
+
+  fit <- idr(data[[Y_var]], data[, ..X_vars], groups = groups, orders = orders)
   fit$X_vars <- X_vars
   fit$Y_var <- Y_var
   fit$ys <- ys
@@ -256,11 +265,19 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
 ### IDR*
 ### -----------------------------------------------------------------------
 
-dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau) {
+dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau, groups = NULL, orders = NULL) {
   X_vars <- all.vars(formula[[3]])
   Y_var <- deparse(formula[[2]])
 
-  fit <- idr(data[[Y_var]], data[, ..X_vars])
+  if (is.null(groups)) {
+    groups <- setNames(rep(1, length(X_vars)), X_vars)
+  }
+
+  if (is.null(orders)) {
+    orders <- c("comp" = 1)
+  }
+
+  fit <- idr(data[[Y_var]], data[, ..X_vars], groups = groups, orders = orders)
   fit <- list(idrfit = fit, alpha_sig = alpha_sig, ys = ys, tau = tau, X_vars = X_vars, Y_var = Y_var)
   class(fit) <- "idrfit_opt"
   fit
