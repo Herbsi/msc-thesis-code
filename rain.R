@@ -4,6 +4,7 @@ library(dtplyr)
 library(furrr)
 library(lubridate, warn.conflicts=FALSE)
 library(purrr, warn.conflicts=FALSE)
+library(stringr)
 library(tibble, warn.conflicts=FALSE)
 library(tidyr, warn.conflicts=FALSE)
 
@@ -86,6 +87,7 @@ rain_results <- precipitation |>
   mutate(indices = map2(n, run, generate_indices)) |>
   mutate(compute = future_pmap(list(airport, horizon, method_name, run, indices),
     \(airport, horizon, method_name, run, indices) {
+      writeLines(str_c(airport, horizon, method_name, run, sep = " "))
       ap <- airport
       hz <- horizon
       with(summarise_analysis(run_analysis(precipitation[airport == ap & horizon == hz], method_name, indices)), {
@@ -104,5 +106,5 @@ rain_results <- precipitation |>
   ungroup() 
 
 
-## save(precipitation_results_summarised, file = "results/precipitation/results.RData")
+save(precipitation_results_summarised, file = "results/precipitation/results_parallel.RData")
 
