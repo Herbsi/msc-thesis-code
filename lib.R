@@ -132,8 +132,8 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     num_cores <- detectCores() - 1
 
     ## Perform the different runs in parallel.
-    ## simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
-    simulation_result <- replicate(runs, single_run(), simplify = FALSE) |>
+    simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
+    ## simulation_result <- replicate(runs, single_run(), simplify = FALSE) |>
       rbindlist()
 
     elapsed <- difftime(Sys.time(), start, units = "secs")

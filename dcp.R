@@ -4,8 +4,8 @@ library(quantreg)
 
 dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
   ## Fit model
-  tau <- seq(0.001, 0.999, length = 200)
-  ys <- quantile(unique(c(data_train$Y, data_valid$Y, data_test$Y)), tau)
+  tau <- seq(0.001, 0.999, length = 2000)
+  ys <- quantile(unique(data_test$Y), tau)
 
   fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
 
@@ -237,7 +237,7 @@ dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau) {
 }
 
 dcp_predict.idrfit_opt <- function(fit, data) {
-  predict(fit$idrfit, data, digits = 10)
+  predict(fit$idrfit, data)
 }
 
 dcp_bhat.idrfit_opt <- function(fit, pred) {
