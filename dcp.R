@@ -1,59 +1,76 @@
-library(data.table)
+library(data.table, warn.conflicts=FALSE)
 library(isodistrreg)
+library(purrr)
 library(quantreg)
 
-dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1) {
+dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  ## Remaining arguments `...' get passed on to `dcp_fit'.
+  Y_var <- deparse(formula[[2]])
+  X_vars <- all.vars(formula[[3]])
+
+  data_train <- as.data.table(data_train)
+  data_valid <- as.data.table(data_valid)
+  data_test <- as.data.table(data_test)
+
   ## Fit model
   tau <- seq(0.001, 0.999, length = 2000)
   ys <- quantile(unique(data_test$Y), tau)
 
-  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys)
+  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys, ...)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
-  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
 
+  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
+  
   conditional_coverage <- dcp_score(fit, data_test) <= threshold
   conditional_leng <- suppressWarnings(dcp_leng(fit, data_test, threshold))
   conditional_leng[conditional_leng == -Inf] <- NA
-
   data.table(
-    X = data_test$X,
+    data_test[, ..X_vars],
     conditional_coverage = conditional_coverage,
     conditional_leng = conditional_leng)
 }
 
-dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("QR", formula, data_train, data_valid, data_test, alpha)
+dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("QR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("QR*", formula, data_train, data_valid, data_test, alpha)
+dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("QR*", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("DR", formula, data_train, data_valid, data_test, alpha)
+dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("DR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR", formula, data_train, data_valid, data_test, alpha)
+dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR*", formula, data_train, data_valid, data_test, alpha)
+dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR*", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha)
+dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha)
+dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha, ...)
 }
 
-dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1) {
-  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha)
+dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha, ...)
 }
+
+dcp_method_list <- list(CP_LOC = dcp_cp_loc,
+  CP_OLS = dcp_cp_ols,
+  DR = dcp_dr,
+  IDR = dcp_idr,
+  "IDR*" = dcp_idr_opt,
+  QR = dcp_qr,
+  "QR*" = dcp_qr_opt)
 
 ### Fit
 ### ------------------------------------------------------------------------
@@ -64,8 +81,8 @@ dcp_fit <- function(type, formula, data, ...) {
     "QR" = dcp_fit.rqs(formula, data, args$tau),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
-    "IDR" = dcp_fit.idrfit(formula, data, args$ys),
-    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, args$ys, args$tau),
+    "IDR" = dcp_fit.idrfit(formula, data, ys = args$ys, groups = args$groups, orders = args$orders),
+    "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, ys = args$ys, tau = args$tau, groups = args$groups, orders = args$orders),
     "IDR-BAG" = dcp_fit.idrbag(formula, data),
     "CP-OLS" = dcp_fit.lm(formula, data),
     "CP-LOC" = dcp_fit.cp_loc(formula, data)
@@ -159,7 +176,7 @@ dcp_score.rq_opt <- function(fit, data) {
   pred <- dcp_predict(fit, data)
   b_hat <- dcp_bhat(fit, pred)
 
-  abs(rowMeans(pred <= data$Y) - b_hat - (1 - fit$alpha_sig)/2)
+  abs(rowMeans(pred <= data[[names(fit$rq$model)[1]]]) - b_hat - (1 - fit$alpha_sig)/2)
 }
 
 dcp_leng.rq_opt <- function(fit, data, threshold) {
@@ -180,22 +197,27 @@ dcp_leng.rq_opt <- function(fit, data, threshold) {
 ### ---------------------------------------------------------------------
 
 dcp_fit.dr <- function(formula, data, ys) {
-  y <- data$Y
-  x <- cbind(1, data[, "X"])
+  X_vars <- all.vars(formula[[3]])
+  Y_var <- deparse(formula[[2]])
+  y <- data[, ..Y_var]
+  x <- cbind(1, data[, ..X_vars])
+
   beta <- sapply(ys, \(the_y) suppressWarnings(glm.fit(x, (y <= the_y),
     family = binomial(link = "logit"))$coefficients))
-  fit <- list(beta = beta, ys = ys)
+  fit <- list(beta = beta, ys = ys, X_vars = X_vars, Y_var = Y_var)
   class(fit) <- "dr"
   fit
 }
 
 dcp_predict.dr <- function(fit, data) {
-  plogis(as.matrix(cbind(1, data[, "X"])) %*% fit$beta)
+  X_vars <- fit$X_vars
+  ## Just doing `..fit$X_vars' inside data[…] did not work.
+  plogis(as.matrix(cbind(1, data[, ..X_vars])) %*% fit$beta)
 }
 
 dcp_score.dr <- function(fit, data) {
   pred <- dcp_predict(fit, data)
-  imap_dbl(data$Y, \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y,
+  imap_dbl(data[[fit$Y_var]], \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y,
     rule = 2)$y - 0.5) |>
     abs()
 }
@@ -207,8 +229,21 @@ dcp_leng.dr <- function(fit, data, threshold) {
 ### IDR
 ### ------------------------------------------------------------------------
 
-dcp_fit.idrfit <- function(formula, data, ys) {
-  fit <- idr(data$Y, data[, "X"])
+dcp_fit.idrfit <- function(formula, data, ys, groups = NULL, orders = NULL) {
+  X_vars <- all.vars(formula[[3]])
+  Y_var <- deparse(formula[[2]])
+
+  if (is.null(groups)) {
+    groups <- setNames(rep(1, length(X_vars)), X_vars)
+  }
+
+  if (is.null(orders)) {
+    orders <- c("comp" = 1)
+  }
+
+  fit <- idr(data[[Y_var]], data[, ..X_vars], groups = groups, orders = orders)
+  fit$X_vars <- X_vars
+  fit$Y_var <- Y_var
   fit$ys <- ys
   fit
 }
@@ -218,7 +253,7 @@ dcp_predict.idrfit <- function(fit, data) {
 }
 
 dcp_score.idrfit <- function(fit, data) {
-  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
+  abs(pit(dcp_predict(fit, data), data[[fit$Y_var]]) - 0.5)
 }
 
 dcp_leng.idrfit <- function(fit, data, threshold) {
@@ -226,12 +261,24 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
     apply(1, function(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
+
 ### IDR*
 ### -----------------------------------------------------------------------
 
-dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau) {
-  fit <- idr(data$Y, data[, "X"])
-  fit <- list(idrfit = fit, alpha_sig = alpha_sig, ys = ys, tau = tau)
+dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau, groups = NULL, orders = NULL) {
+  X_vars <- all.vars(formula[[3]])
+  Y_var <- deparse(formula[[2]])
+
+  if (is.null(groups)) {
+    groups <- setNames(rep(1, length(X_vars)), X_vars)
+  }
+
+  if (is.null(orders)) {
+    orders <- c("comp" = 1)
+  }
+
+  fit <- idr(data[[Y_var]], data[, ..X_vars], groups = groups, orders = orders)
+  fit <- list(idrfit = fit, alpha_sig = alpha_sig, ys = ys, tau = tau, X_vars = X_vars, Y_var = Y_var)
   class(fit) <- "idrfit_opt"
   fit
 }
@@ -249,7 +296,7 @@ dcp_bhat.idrfit_opt <- function(fit, pred) {
 
 dcp_score.idrfit_opt <- function(fit, data) {
   pred <- dcp_predict(fit, data)
-  abs(pit(pred, data$Y) - dcp_bhat(fit, pred) - (1 - fit$alpha_sig)/2)
+  abs(pit(pred, data[[fit$Y_var]]) - dcp_bhat(fit, pred) - (1 - fit$alpha_sig)/2)
 }
 
 dcp_leng.idrfit_opt <- function(fit, data, threshold) {
@@ -264,39 +311,6 @@ dcp_leng.idrfit_opt <- function(fit, data, threshold) {
   }
 
   apply(cbind(b_hat, cdf), 1, compute_leng)
-}
-
-
-### IDR-BAG
-### --------------------------------------------------------------------
-
-dcp_fit.idrbag <- function(formula, data) {
-  y <- data$Y
-  x <- data[, "X"]
-  fit <- function(data) {
-    ## NOTE <2024-05-28 Tue>: Used arbitrary values for `b' and `p' here.  NOTE
-    ## <2024-05-28 Tue>: Chose small values; otherwise, it takes forever.  Also
-    ## didn't see much improvement
-    idrbag(y, x, newdata = data, b = 5, p = 0.8)
-  }
-  class(fit) <- "idrbag"
-  fit
-}
-
-dcp_predict.idrbag <- function(fit, data) {
-  fit(data)
-}
-
-dcp_score.idrbag <- function(fit, data) {
-  abs(pit(dcp_predict(fit, data), data$Y) - 0.5)
-}
-
-dcp_leng.idrbag <- function(fit, data, threshold) {
-  dcp_predict(fit, data) |>
-    map_dbl(~{
-      tmp <- .x$points[abs(.x$cdf - 0.5) <= threshold]
-      max(tmp) - min(tmp)
-    })
 }
 
 
@@ -325,8 +339,8 @@ dcp_leng.lm <- function(fit, data, threshold) {
 
 dcp_fit.cp_loc <- function(formula, data) {
   model_reg <- lm(formula, data = data)
-  model_sig <- lm(abs(residuals(model_reg)) ~ X, data = data)
-
+  model_sig <- lm(reformulate(response = "abs(residuals(model_reg))", termlabels = all.vars(formula[[3]])),
+    data = data)
   model <- list(reg = model_reg, sig = model_sig)
   class(model) <- "cp_loc"  # I have succumb to the dark side---they had cookies.
   model  # Is a list of two `lm's

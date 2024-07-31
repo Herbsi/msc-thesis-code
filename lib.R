@@ -83,15 +83,6 @@ generate_data <- function(n_train, n_valid, n_test, model_name) {
 
 
 make_simulation_run <- function(runs, alpha_sig, results_dir) {
-  method_list <- list(QR = dcp_qr,
-    "QR*" = dcp_qr_opt,
-    DR = dcp_dr,
-    IDR = dcp_idr,
-    "IDR*" = dcp_idr_opt,
-    CP_OLS = dcp_cp_ols,
-    CP_LOC = dcp_cp_loc)
-
-
   noise <- function(n) {
     runif(n, -1e-6, 1e-6)
   }
@@ -103,7 +94,7 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
     
     ## Setup
     set.seed(42 + n) # Ensure we generate the same data for every `n'
-    method <- method_list[[method_name]]
+    method <- dcp_method_list[[method_name]]
 
     n_train <- n / 2
     n_valid <- n / 2
@@ -133,7 +124,6 @@ make_simulation_run <- function(runs, alpha_sig, results_dir) {
 
     ## Perform the different runs in parallel.
     simulation_result <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
-    ## simulation_result <- replicate(runs, single_run(), simplify = FALSE) |>
       rbindlist()
 
     elapsed <- difftime(Sys.time(), start, units = "secs")
