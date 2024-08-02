@@ -3,7 +3,7 @@ library(isodistrreg)
 library(purrr)
 library(quantreg)
 
-dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
+dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 0.1, ...) {
   ## Remaining arguments `...' get passed on to `dcp_fit'.
   Y_var <- deparse(formula[[2]])
   X_vars <- all.vars(formula[[3]])
@@ -16,76 +16,33 @@ dcp <- function(type, formula, data_train, data_valid, data_test, alpha = 0.1, .
   tau <- seq(0.001, 0.999, length = 2000)
   ys <- quantile(unique(data_test$Y), tau)
 
-  fit <- dcp_fit(type, formula, data_train, alpha_sig = alpha, tau = tau, ys = ys, ...)
+  fit <- dcp_fit(method, formula, data_train, alpha_sig, tau = tau, ys = ys, ...)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
-
   threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
   
   conditional_coverage <- dcp_score(fit, data_test) <= threshold
   conditional_leng <- suppressWarnings(dcp_leng(fit, data_test, threshold))
   conditional_leng[conditional_leng == -Inf] <- NA
+  
   data.table(
     data_test[, ..X_vars],
     conditional_coverage = conditional_coverage,
     conditional_leng = conditional_leng)
 }
 
-dcp_qr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("QR", formula, data_train, data_valid, data_test, alpha, ...)
-}
 
-dcp_qr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("QR*", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_dr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("DR", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_idr <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("IDR", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_idr_opt <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("IDR*", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_idrbag <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("IDR-BAG", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_cp_ols <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("CP-OLS", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_cp_loc <- function(formula, data_train, data_valid, data_test, alpha = 0.1, ...) {
-  dcp("CP-LOC", formula, data_train, data_valid, data_test, alpha, ...)
-}
-
-dcp_method_list <- list(CP_LOC = dcp_cp_loc,
-  CP_OLS = dcp_cp_ols,
-  DR = dcp_dr,
-  IDR = dcp_idr,
-  "IDR*" = dcp_idr_opt,
-  QR = dcp_qr,
-  "QR*" = dcp_qr_opt)
-
-### Fit
-### ------------------------------------------------------------------------
-
-dcp_fit <- function(type, formula, data, ...) {
+dcp_fit <- function(method, formula, data, ...) {
   args <- list(...)
-  switch(type,
-    "QR" = dcp_fit.rqs(formula, data, args$tau),
+  switch(method,
+    "CP-LOC" = dcp_fit.cp_loc(formula, data),
+    "CP-OLS" = dcp_fit.lm(formula, data),
     "DR" = dcp_fit.dr(formula, data, args$ys),
-    "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau),
     "IDR" = dcp_fit.idrfit(formula, data, ys = args$ys, groups = args$groups, orders = args$orders),
     "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, ys = args$ys, tau = args$tau, groups = args$groups, orders = args$orders),
-    "IDR-BAG" = dcp_fit.idrbag(formula, data),
-    "CP-OLS" = dcp_fit.lm(formula, data),
-    "CP-LOC" = dcp_fit.cp_loc(formula, data)
+    "QR" = dcp_fit.rqs(formula, data, args$tau),
+    "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau)
   )
 }
 
@@ -105,8 +62,8 @@ dcp_leng <- function(fit, data, threshold) {
   UseMethod("dcp_leng")
 }
 
-### QR
-### -------------------------------------------------------------------------
+
+### QR -------------------------------------------------------------------------
 
 dcp_fit.rqs <- function(formula, data, tau) {
   rq(formula, tau = tau, data = data)
@@ -138,8 +95,7 @@ dcp_leng.rqs <- function(fit, data, threshold) {
 }
 
 
-### QR*
-### ------------------------------------------------------------------------
+### QR* ------------------------------------------------------------------------
 
 dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau) {
   rq <- rq(formula, tau = tau, data = data)
@@ -193,8 +149,7 @@ dcp_leng.rq_opt <- function(fit, data, threshold) {
 }
 
 
-### GLM-DR
-### ---------------------------------------------------------------------
+### GLM-DR ---------------------------------------------------------------------
 
 dcp_fit.dr <- function(formula, data, ys) {
   X_vars <- all.vars(formula[[3]])
@@ -226,8 +181,7 @@ dcp_leng.dr <- function(fit, data, threshold) {
   apply(dcp_predict(fit, data), 1, \(row) diff(range(fit$ys[abs(row - 0.5) <= threshold])))
 }
 
-### IDR
-### ------------------------------------------------------------------------
+### IDR ------------------------------------------------------------------------
 
 dcp_fit.idrfit <- function(formula, data, ys, groups = NULL, orders = NULL) {
   X_vars <- all.vars(formula[[3]])
@@ -262,8 +216,7 @@ dcp_leng.idrfit <- function(fit, data, threshold) {
 }
 
 
-### IDR*
-### -----------------------------------------------------------------------
+### IDR* ---------------------------------------------------------------------------------
 
 dcp_fit.idrfit_opt <- function(formula, data, alpha_sig, ys, tau, groups = NULL, orders = NULL) {
   X_vars <- all.vars(formula[[3]])
@@ -314,8 +267,7 @@ dcp_leng.idrfit_opt <- function(fit, data, threshold) {
 }
 
 
-### CP-OLS
-### ---------------------------------------------------------------------
+### CP-OLS ---------------------------------------------------------------------
 
 dcp_fit.lm <- function(formula, data) {
   lm(formula, data)
@@ -334,8 +286,8 @@ dcp_leng.lm <- function(fit, data, threshold) {
   rep(2 * threshold, nrow(data))
 }
 
-### CP-loc
-### ---------------------------------------------------------------------
+
+### CP-loc ---------------------------------------------------------------------
 
 dcp_fit.cp_loc <- function(formula, data) {
   model_reg <- lm(formula, data = data)
