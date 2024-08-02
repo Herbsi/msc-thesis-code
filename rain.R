@@ -110,7 +110,7 @@ columns <- c("coverage", "leng", "conditional_coverage_mse", "conditional_leng_s
 for (config in configs) {
   message(config$name)
   ## Create evaluation grid
-  result <- precipitation[, .(n = N), keyby = .(airport, horizon)] |>
+  result <- precipitation[, .(n = .N), keyby = .(airport, horizon)] |>
     expand_grid(method = methods, run = config$runs) |>
     mutate(indices = map2(n, run, config$indices), .keep = "unused") |>
     as.data.table()
