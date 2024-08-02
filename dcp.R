@@ -1,43 +1,41 @@
 library(data.table, warn.conflicts=FALSE)
+library(purrr, include.only = c("imap_dbl"))
 library(isodistrreg)
-library(purrr)
 library(quantreg)
 
 dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 0.1, ...) {
   ## Remaining arguments `...' get passed on to `dcp_fit'.
-  Y_var <- deparse(formula[[2]])
-  X_vars <- all.vars(formula[[3]])
 
-  data_train <- as.data.table(data_train)
-  data_valid <- as.data.table(data_valid)
-  data_test <- as.data.table(data_test)
+  ## Extract column name of response
+  Y <- deparse(formula[[2]])
+
+  tau <- seq(0.001, 0.999, length = 2000)
+  ys <- quantile(unique(data_test[, Y, env = list(Y = Y)]), tau) # This extracts the `Y' column as a vector.
 
   ## Fit model
-  tau <- seq(0.001, 0.999, length = 2000)
-  ys <- quantile(unique(data_test$Y), tau)
-
-  fit <- dcp_fit(method, formula, data_train, alpha_sig, tau = tau, ys = ys, ...)
+  fit <- dcp_fit(method, formula, data_train, alpha_sig = alpha_sig, tau = tau, ys = ys, ...)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
-  threshold <- quantile(scores_valid, probs = min((1 - alpha) * (1 + 1/length(scores_valid)), 1))
+  threshold <- quantile(scores_valid, probs = min((1 - alpha_sig) * (1 + 1/length(scores_valid)), 1))
   
-  conditional_coverage <- dcp_score(fit, data_test) <= threshold
-  conditional_leng <- suppressWarnings(dcp_leng(fit, data_test, threshold))
-  conditional_leng[conditional_leng == -Inf] <- NA
-  
-  data.table(
-    data_test[, ..X_vars],
-    conditional_coverage = conditional_coverage,
-    conditional_leng = conditional_leng)
+  ## Evaluate model
+  data_test[,
+    `:=`(conditional_coverage = dcp_score(fit, .SD) <= threshold,
+      conditional_leng = {
+        leng <- dcp_leng(fit, .SD, threshold)
+        leng[leng == -Inf] <- NA
+        leng
+      })
+  ][]
 }
 
 
 dcp_fit <- function(method, formula, data, ...) {
   args <- list(...)
   switch(method,
-    "CP-LOC" = dcp_fit.cp_loc(formula, data),
-    "CP-OLS" = dcp_fit.lm(formula, data),
+    "CP_LOC" = dcp_fit.cp_loc(formula, data),
+    "CP_OLS" = dcp_fit.lm(formula, data),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "IDR" = dcp_fit.idrfit(formula, data, ys = args$ys, groups = args$groups, orders = args$orders),
     "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, ys = args$ys, tau = args$tau, groups = args$groups, orders = args$orders),
@@ -172,7 +170,7 @@ dcp_predict.dr <- function(fit, data) {
 
 dcp_score.dr <- function(fit, data) {
   pred <- dcp_predict(fit, data)
-  imap_dbl(data[[fit$Y_var]], \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y,
+  purrr::imap_dbl(data[[fit$Y_var]], \(y, idx) approx(x = fit$ys, y = pred[idx, ], xout = y,
     rule = 2)$y - 0.5) |>
     abs()
 }
