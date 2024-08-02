@@ -1,7 +1,8 @@
 library(data.table)
-library(purrr)
-library(stringr)
-library(tidyr)
+library(dplyr, include.only = c("mutate"))
+library(purrr, include.only = c("map2"))
+library(stringr, include.only = c("str_c"))
+library(tidyr, include.only = c("expand_grid"))
 
 source("dcp.R")
 alpha_sig <- 0.1
@@ -93,7 +94,7 @@ summarise_analysis <- function(dt) {
 ### Analysis -------------------------------------------------------------------
 
 dir <- "results/precipitation/"
-dir.create(dir, recursive = TRUE)
+dir.create(dir, recursive = TRUE, showWarnings = FALSE)
 
 configs <- list(
   list(name = "dcp",
