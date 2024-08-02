@@ -1,110 +1,130 @@
 library(data.table)
-library(dplyr, warn.conflicts=FALSE)
-library(dtplyr)
-library(furrr)
-library(lubridate, warn.conflicts=FALSE)
-library(purrr, warn.conflicts=FALSE)
+library(purrr)
 library(stringr)
-library(tibble, warn.conflicts=FALSE)
-library(tidyr, warn.conflicts=FALSE)
+library(tidyr)
 
 source("dcp.R")
+alpha_sig <- 0.1
 
-load("data/precipData_caseStudy.rda")
-precipitation <- lazy_dt(precipData_caseStudy)
+### Load data ------------------------------------------------------------------
+
+precipitation <- readRDS("data/precipitation_data.rds")
 
 ## Filter out days that do not occur at every location
-
-incomplete_days <- precipitation |>
-  group_by(date) |>
-  summarise(count = n()) |>
-  filter(count < 20) |>
-  pull(date)
-
-precipitation <- precipitation |>
-  filter(!(date %in% incomplete_days)) |>
-  as.data.table()
+## We have 4 locations and 5 horizons, so every date needs to occur 20 times.
+precipitation <- precipitation[precipitation[, .N, by = date][N == 20], on = "date"][, -c("N")]
 
 
-train_valid_test <- function(n) {
-  ## Equal train–validation split
-  ## Use ≈ 16% for testing
-  ## That way, we use 50% of the data for training+validation and 10% for testing,
-  ## as `generate_sequential_indices' passes 60% of the total data to this function.
-  list(train_ind = 1:floor(0.42 * n),
-    valid_ind = (floor(0.42 * n) + 1):(floor(0.84 * n)),
-    test_ind = (floor(0.84 * n) + 1):n)
-}
+### Functions ------------------------------------------------------------------
 
-generate_indices <- function(n, run) {
+generate_indices_dcp <- function(n, run) {
   ## Generates a list with keys `train_ind', `valid_ind' and `test_ind'.
   ## such that they cover 60% of the total data
   ## and correspond to `run' (∈ {1, …, 5}).
-  train_valid_test(floor(0.6 * n)) |>
-    map(\(indices) floor((run - 1) * n / 10) + indices)
-}
-
-run_analysis <- function(.data, method_name, indices) {
-  with(indices, {
-    form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
-    data_train <- as.data.table(.data)[train_ind, ]
-    data_valid <- as.data.table(.data)[valid_ind, ]
-    data_test <- as.data.table(.data)[test_ind, ]
-
-    ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
-    ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
-    varNames <- names(precipitation)[-c((1:4), 6)]
-
-    ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
-    ## increasing convex order on the remaining variables (group '2').
-    groups <- setNames(c(1, rep(2, 50)), varNames)
-    orders <- c("comp" = 1, "icx" = 2)
-    
-    dcp_method_list[[method_name]](form, data_train, data_valid, data_test, alpha = 0.1, groups = groups, orders = orders)
-  })
-}
-
-summarise_analysis <- function(.data) {
-  glm_form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "conditional_coverage")
-  fm <- glm(glm_form, data = .data, family = binomial(link = "logit"))
-  pred <- predict(fm, newdata = .data, type = "response")
-  cc_mse <- sqrt(mean((pred - 0.9)^2)) # NOTE 2024-07-30 Hard-coded `0.9' (= 1 - α)
   
-  .data |>
-    summarise(unconditional_coverage = mean(conditional_coverage),
-      average_leng = mean(conditional_leng, na.rm = TRUE),
-      conditional_coverage_mse = cc_mse,
-      conditional_leng_sd = sd(.data$conditional_leng, na.rm = TRUE)
-    )
+  train_valid_test <- function(n) {
+    ## Equal train–validation split
+    ## Use ≈ 16% for testing
+    ## That way, we use 50% of the data for training+validation and 10% for testing,
+    ## as `generate_sequential_indices' passes 60% of the total data to this function.
+    list(train_ind = 1:floor(0.42 * n),
+      valid_ind = (floor(0.42 * n) + 1):(floor(0.84 * n)),
+      test_ind = (floor(0.84 * n) + 1):n)
+  }
+  
+  train_valid_test(floor(0.6 * n)) |>
+    lapply(\(indices) floor((run - 1) * n / 10) + indices)
 }
 
-plan(multicore, workers = availableCores(constraints = "multicore"))
 
-rain_results <- precipitation |>
-  group_by(airport, horizon) |>
-  summarise(n = n(), .groups = "drop") |>
-  expand_grid(method_name = names(dcp_method_list), run = 1:5) |>
-  mutate(indices = map2(n, run, generate_indices)) |>
-  mutate(compute = future_pmap(list(airport, horizon, method_name, run, indices),
-    \(airport, horizon, method_name, run, indices) {
-      writeLines(str_c(airport, horizon, method_name, run, sep = " "))
-      ap <- airport
-      hz <- horizon
-      with(summarise_analysis(run_analysis(precipitation[airport == ap & horizon == hz], method_name, indices)), {
-        list(unconditional_coverage = unconditional_coverage,
-          average_leng = average_leng,
-          conditional_coverage_mse = conditional_coverage_mse,
-          conditional_leng_sd = conditional_leng_sd)
-      })
-    }, .progress = TRUE)) |>
-  unnest_wider(compute) |>
-  group_by(airport, horizon, method_name) |>
-  summarise(unconditional_coverage = mean(unconditional_coverage),
-    average_leng = mean(average_leng),
-    conditional_coverage_mse = mean(conditional_coverage_mse),
-    conditional_leng_sd = mean(conditional_leng_sd)) |>
-  ungroup() 
+generate_indices_ziegel <- function(n, run) {
+  ## Generate indices the way Prof. Ziegel suggested, ie,
+  ## do not average across multiple sets in time.
+  list(train_ind = 1:floor(0.4*n),
+    valid_ind = (floor(0.4*n)+1):floor(0.8*n),
+    test_ind = (floor(0.8*n)+1):n)
+}
 
 
-save(precipitation_results_summarised, file = "results/precipitation/results_parallel.RData")
+run_analysis <- function(airport, horizon, method, indices) {
+  message(str_c(airport, horizon, method, sep = " "))
+  
+  dt <- precipitation[airport == ap & horizon == hz,
+    env = list(ap = I(airport), hz = I(horizon))]
 
+  ## FIXME 2024-08-02 `indices' requires this weird unpacking.
+  train_ind <- indices[[1]][[1]]
+  valid_ind <- indices[[1]][[2]]
+  test_ind <- indices[[1]][[3]]
+
+  form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
+
+  ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
+  ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
+  varNames <- names(precipitation)[-c((1:4), 6)]
+
+  ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
+  ## increasing convex order on the remaining variables (group '2').
+  groups <- setNames(c(1, rep(2, 50)), varNames)
+  orders <- c("comp" = 1, "icx" = 2)
+
+  dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind], alpha_sig = alpha_sig, groups = groups, orders = orders)
+}
+
+
+summarise_analysis <- function(dt) {
+  glm_form <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
+    response = "conditional_coverage")
+  fm <- glm(glm_form, data = dt, family = binomial(link = "logit"))
+  pred <- predict(fm, newdata = dt, type = "response")
+  cc_mse <- sqrt(mean((pred - (1 - alpha_sig))^2)) 
+
+  list(## Estimate the unconditional coverage as the overall mean.
+    coverage = mean(dt$conditional_coverage, na.rm = TRUE),
+    ## Similarly for the length.
+    leng = mean(dt$conditional_leng, na.rm = TRUE),
+    ## Summarise the conditional length by binning it according to X
+    conditional_coverage_mse = cc_mse,
+    conditional_leng_sd = sd(dt$conditional_leng, na.rm = TRUE)
+  )
+}
+
+
+### Analysis -------------------------------------------------------------------
+
+dir <- "results/precipitation/"
+dir.create(dir, recursive = TRUE)
+
+configs <- list(
+  list(name = "dcp",
+    runs = 1:5,
+    indices = generate_indices_dcp),
+  list(name = "ziegel",
+    runs = 1,
+    indices = generate_indices_ziegel)
+)
+methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
+columns <- c("coverage", "leng", "conditional_coverage_mse", "conditional_leng_sd")
+
+for (config in configs) {
+  message(config$name)
+  ## Create evaluation grid
+  result <- precipitation[, .(n = N), keyby = .(airport, horizon)] |>
+    expand_grid(method = methods, run = config$runs) |>
+    mutate(indices = map2(n, run, config$indices), .keep = "unused") |>
+    as.data.table()
+
+  ## Perform calculations.
+  result[,
+  (columns) := summarise_analysis(run_analysis(airport, horizon, method, indices)),
+  by = .I][, indices := NULL]
+
+  ## Mean over runs.
+  result <- result[,
+    lapply(.SD, mean),
+    by = .(airport, horizon, method),
+    .SDcols = columns
+  ]
+
+  saveRDS(result, file = file.path(dir, str_c("result", config$name, ".rds")))
+}
