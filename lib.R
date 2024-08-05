@@ -38,8 +38,8 @@ rmodel <- function(n, model, x) {
       sample(proposal[accepted], size = n) # Take random subsample of the accepted samples.
     },
     "S1(Irwin Hall)" = replicate(n, sum(runif(10 + floor(x)))),
-    "S1(Bound above)" = rbeta(n, shape1 = 5, shape2 = 1 - x / 20),
-    "S1(Bound above shifted)" = x / 10 + rbeta(n, shape1 = 5, shape2 = 1 - x / 10),
+    "S1(Bound above)" = rbeta(n, shape1 = 5, shape2 = 2 - x / 20),
+    "S1(Bound above shifted)" = x / 10 + rbeta(n, shape1 = 5, shape2 = 2 - x / 10),
     "S1(No bounds)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6))
   )
 }
