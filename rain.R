@@ -1,8 +1,10 @@
 library(data.table)
 library(dplyr, include.only = c("mutate"))
+library(furrr, include.only = c("future_pmap"))
+library(future)
 library(purrr, include.only = c("map2"))
 library(stringr, include.only = c("str_c"))
-library(tidyr, include.only = c("expand_grid"))
+library(tidyr, include.only = c("expand_grid", "unnest_wider"))
 
 source("dcp.R")
 alpha_sig <- 0.1
@@ -53,23 +55,22 @@ run_analysis <- function(airport, horizon, method, indices) {
   dt <- precipitation[airport == ap & horizon == hz,
     env = list(ap = I(airport), hz = I(horizon))]
 
-  ## FIXME 2024-08-02 `indices' requires this weird unpacking.
-  train_ind <- indices[[1]][[1]]
-  valid_ind <- indices[[1]][[2]]
-  test_ind <- indices[[1]][[3]]
+  with(indices, {
+    form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
 
-  form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
+    ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
+    ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
+    varNames <- names(precipitation)[-c((1:4), 6)]
 
-  ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
-  ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
-  varNames <- names(precipitation)[-c((1:4), 6)]
+    ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
+    ## increasing convex order on the remaining variables (group '2').
+    groups <- setNames(c(1, rep(2, 50)), varNames)
+    orders <- c("comp" = 1, "icx" = 2)
 
-  ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
-  ## increasing convex order on the remaining variables (group '2').
-  groups <- setNames(c(1, rep(2, 50)), varNames)
-  orders <- c("comp" = 1, "icx" = 2)
-
-  dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind], alpha_sig = alpha_sig, groups = groups, orders = orders)
+    dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind], alpha_sig = alpha_sig, groups = groups, orders = orders)
+    saveRDS(dt, file = file.path(dir, str_c(str_c(airport, horizon, method, train_ind[1], sep = "_"), ".rds")))
+    dt
+  })
 }
 
 
@@ -93,7 +94,7 @@ summarise_analysis <- function(dt) {
 
 ### Analysis -------------------------------------------------------------------
 
-dir <- "results/precipitation/"
+dir <- file.path("results", "precipitation",  format(Sys.time(), "%Y%m%d%H%M%S"))
 dir.create(dir, recursive = TRUE, showWarnings = FALSE)
 
 configs <- list(
@@ -107,18 +108,22 @@ configs <- list(
 methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
 columns <- c("coverage", "leng", "conditional_coverage_mse", "conditional_leng_sd")
 
+plan(multicore, workers = availableCores() - 1)
+
 for (config in configs) {
   message(config$name)
+  
   ## Create evaluation grid
-  result <- precipitation[, .(n = .N), keyby = .(airport, horizon)] |>
+  result <- precipitation[, .(n = 1024), keyby = .(airport, horizon)] |>
     expand_grid(method = methods, run = config$runs) |>
     mutate(indices = map2(n, run, config$indices), .keep = "unused") |>
-    as.data.table()
-
   ## Perform calculations.
-  result[,
-  (columns) := summarise_analysis(run_analysis(airport, horizon, method, indices)),
-  by = .I][, indices := NULL]
+    mutate(compute = future_pmap(list(airport, horizon, method, indices),
+      \(...) summarise_analysis(run_analysis(...)))) |>
+    unnest_wider(compute) |>
+    as.data.table()
+  
+  result[, indices := NULL]
 
   ## Mean over runs.
   result <- result[,
