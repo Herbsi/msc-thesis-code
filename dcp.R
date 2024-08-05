@@ -9,7 +9,7 @@ dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 
   ## Extract column name of response
   Y <- deparse(formula[[2]])
 
-  tau <- seq(0.001, 0.999, length = 2000)
+  tau <- seq(0.001, 0.999, length = 200)
   ys <- quantile(unique(data_test[, Y, env = list(Y = Y)]), tau) # This extracts the `Y' column as a vector.
 
   ## Fit model
@@ -147,7 +147,7 @@ dcp_leng.rq_opt <- function(fit, data, threshold) {
 }
 
 
-### GLM-DR ---------------------------------------------------------------------
+### GLMDR ----------------------------------------------------------------------
 
 dcp_fit.dr <- function(formula, data, ys) {
   X_vars <- all.vars(formula[[3]])
