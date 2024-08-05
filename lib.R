@@ -137,7 +137,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
     dt <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
       rbindlist()
     elapsed <- difftime(Sys.time(), start, units = "secs")
-    message(str_c("Time:", elapsed, sep = " "))
+    message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
 
     if (!is.null(dir)) {
       ## Save raw results to file.

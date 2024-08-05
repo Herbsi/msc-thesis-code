@@ -67,7 +67,10 @@ run_analysis <- function(airport, horizon, method, indices) {
     groups <- setNames(c(1, rep(2, 50)), varNames)
     orders <- c("comp" = 1, "icx" = 2)
 
+    start <- Sys.time()
     dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind], alpha_sig = alpha_sig, groups = groups, orders = orders)
+    elapsed <- difftime(Sys.time(), start, units = "secs")
+    message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
     saveRDS(dt, file = file.path(dir, str_c(str_c(airport, horizon, method, train_ind[1], sep = "_"), ".rds")))
     dt
   })
