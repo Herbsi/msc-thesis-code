@@ -185,7 +185,8 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
 
   run_simulation <- make_simulation(runs, alpha_sig, dir)
 
-  dt <- as.data.table(expand_grid(model = model, method = method, n = n))[,
+  dt <- as.data.table(expand_grid(model = model, method = method, n = n))[
+    order(n, method, model)][,
     c("coverage", "leng", "conditional_coverage", "conditional_leng")
     := summarise_simulation(run_simulation(model, method, n)),
     by = .I][]
