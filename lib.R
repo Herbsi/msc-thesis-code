@@ -97,14 +97,43 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
   ## - `model' specifies how the data should be generated,
   ## - `method' specifies the DCP method to use (eg, DR, IDR, QR, …)
   ## Optionally, if `results_dir' is not NULL, the simulation results are saved there.
+
+  ## Variables and functions used in a simulation ------------------------------
+
+  num_cores <- detectCores() - 1
+
   noise <- function(n) {
     runif(n, -1e-6, 1e-6)
   }
 
-  num_cores <- detectCores() - 1
+  summarise_runs <- function(dt) {
+    dt[,
+      list(
+        ## Estimate the unconditional coverage as the overall mean.
+        coverage = mean(conditional_coverage, na.rm = TRUE),
+        ## Similarly for the length.
+        leng = mean(conditional_leng, na.rm = TRUE),
+        ## Summarise the conditional coverage as a logistic regression model
+        conditional_coverage = {
+          .(tidy(glm(conditional_coverage ~ X, .SD, family = binomial(link = "logit"))))
+        },
+        ## Summarise the conditional length by binning it according to X
+        conditional_leng = {
+          .(.SD[,
+            .(leng = mean(conditional_leng, na.rm = TRUE)),
+            keyby = list(bin = cut(X,
+              breaks = seq(floor(min(X)), ceiling(max(X)), length.out = 21),
+              include.lowest = TRUE,
+              ordered_result = TRUE))])
+        }),
+      ]
+  }
+
 
   function(model, method, n) {
+    message("--------------------------------------------------------------------------------")
     message(str_c(model, method, n, sep = " "))
+
     ## Setup
     set.seed(42 + n) # Ensure we generate the same data for every `n'
 
@@ -132,47 +161,44 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
       dcp(method, Y ~ X, data_train, data_valid, data_test, alpha_sig)
     }
 
-    ## Perform the different runs in parallel.
-    start <- Sys.time()
-    dt <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores) |>
-      rbindlist()
-    elapsed <- difftime(Sys.time(), start, units = "secs")
-    message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
+    ## Sometimes, …, sometimes the code below fails.
+    ## I don't know why.
+    ## And I could not figure it out.
+    ## So I decided to use the obvious solution:
+    ## I just execute the code multiple times.
+    n_tries <- 10
+    for (try in 1:n_tries) {
+      message(str_c("Attempt: ", try))
+      tryCatch({
+        start <- Sys.time()
 
-    if (!is.null(dir)) {
-      ## Save raw results to file.
-      filename <- file.path(dir, str_c(str_c(method, model, n, sep = "_"), ".rds"))
-      saveRDS(dt, file = filename)
-    }
+        ## Perform the different runs in parallel.
+        dt <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores, mc.silent = TRUE) |>
+          rbindlist()
 
-    ## Return result
-    dt
-  }
-}
+        ## Summarise the results of a simulation.
+        dt <- summarise_runs(dt)
 
+        elapsed <- difftime(Sys.time(), start, units = "secs")
+        message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
 
-summarise_simulation <- function(dt) {
-  ## Summarise the result of a simulation
-  dt[,
-    list(
-      ## Estimate the unconditional coverage as the overall mean.
-      coverage = mean(conditional_coverage, na.rm = TRUE),
-      ## Similarly for the length.
-      leng = mean(conditional_leng, na.rm = TRUE),
-      ## Summarise the conditional coverage as a logistic regression model
-      conditional_coverage = {
-        .(tidy(glm(conditional_coverage ~ X, .SD, family = binomial(link = "logit"))))
+        if (!is.null(dir)) {
+          ## Save summarised results to file.
+          filename <- file.path(dir, str_c(str_c(method, model, n, sep = "_"), ".rds"))
+          saveRDS(dt, file = filename)
+        }
+
+        message("--------------------------------------------------------------------------------\n")
+        ## Return results.
+        return(dt)
       },
-      ## Summarise the conditional length by binning it according to X
-      conditional_leng = {
-        .(.SD[,
-          .(leng = mean(conditional_leng, na.rm = TRUE)),
-          keyby = list(bin = cut(X,
-            breaks = seq(floor(min(X)), ceiling(max(X)), length.out = 21),
-            include.lowest = TRUE,
-            ordered_result = TRUE))])
-      }),
-    ]
+      error = function(cond) {}
+      )
+    }
+    message(str_c("Error in", model, method, n, sep = " "))
+    message(str_c("Failed", n_tries, "times", sep = " "))
+    data.table(coverage = NaN, leng = NaN, conditional_coverage = list(NA),conditional_leng = list(NA))
+  }
 }
 
 
@@ -188,7 +214,7 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
   dt <- as.data.table(expand_grid(model = model, method = method, n = n))[
     order(n, method, model)][,
     c("coverage", "leng", "conditional_coverage", "conditional_leng")
-    := summarise_simulation(run_simulation(model, method, n)),
+    := run_simulation(model, method, n),
     by = .I][]
 
   saveRDS(dt, file = file.path(dir, str_c("result", format(Sys.time(), "%H%M%S"), ".rds")))
