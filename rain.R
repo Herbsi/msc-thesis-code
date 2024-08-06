@@ -49,7 +49,7 @@ generate_indices_ziegel <- function(n, run) {
 }
 
 
-run_analysis <- function(airport, horizon, method, indices) {
+run_analysis <- function(airport, horizon, method, indices, config) {
   message(str_c(airport, horizon, method, sep = " "))
   
   dt <- precipitation[airport == ap & horizon == hz,
@@ -68,10 +68,14 @@ run_analysis <- function(airport, horizon, method, indices) {
     orders <- c("comp" = 1, "icx" = 2)
 
     start <- Sys.time()
-    dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind], alpha_sig = alpha_sig, groups = groups, orders = orders)
+    dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind],
+      alpha_sig = alpha_sig, groups = groups, orders = orders)
     elapsed <- difftime(Sys.time(), start, units = "secs")
     message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
-    saveRDS(dt, file = file.path(dir, str_c(str_c(airport, horizon, method, train_ind[1], sep = "_"), ".rds")))
+    subDir <- file.path(dir, config)
+    dir.create(subDir, recursive = TRUE, showWarnings = FALSE)
+    saveRDS(dt, file = file.path(subDir, str_c(str_c(airport, horizon, method,
+      train_ind[1], sep = "_"), ".rds")))
     dt
   })
 }
@@ -119,9 +123,9 @@ for (config in configs) {
   ## Create evaluation grid
   result <- precipitation[, .(n = .N), keyby = .(airport, horizon)] |>
     expand_grid(method = methods, run = config$runs) |>
-    mutate(indices = map2(n, run, config$indices), .keep = "unused") |>
-  ## Perform calculations.
-    mutate(compute = future_pmap(list(airport, horizon, method, indices),
+    mutate(indices = map2(n, run, config$indices), config = config$name ,
+      .keep = "unused") |> ## Perform calculations.
+    mutate(compute = future_pmap(list(airport, horizon, method, indices, config),
       \(...) summarise_analysis(run_analysis(...)))) |>
     unnest_wider(compute) |>
     as.data.table()
