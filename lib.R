@@ -221,3 +221,27 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
 
   dt
 }
+
+
+stitch_results <- function(dir) {
+  current_dir <- getwd()
+  on.exit(setwd(current_dir))
+  setwd(dir)
+
+  result <- lapply(list.files(), \(file) {
+    match <- str_match(file, "((?:CP_LOC)|(?:CP_OLS)|[A-Z*]+)_(.*?)_([0-9]+)\\.rds")
+    if (!(is.na(match[1]))) {
+      method <- match[1, 2]
+      model <- match[1, 3]
+      n <- match[1, 4] |> as.integer()
+      result <- readRDS(file)
+      result[, `:=`(method = ..method, model = ..model, n = ..n)][]
+    }
+  }) |>
+    rbindlist()
+
+  setcolorder(result, c("model", "method", "n", "coverage", "leng", "conditional_coverage", "conditional_leng"))
+  setorder(result, n, method, model)
+  saveRDS(result, file = file.path(str_c("result_stitched", format(Sys.time(), "%Y%m%d%H%M%S"), ".rds")))
+  result
+}
