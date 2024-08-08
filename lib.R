@@ -139,7 +139,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
 
     n_train <- n / 2
     n_valid <- n / 2
-    n_test <- 4096
+    n_test <- 8192
 
     ## Function to perform a single run.
     ## This should be fairly fast, as it gets called /a lot/.
