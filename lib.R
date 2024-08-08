@@ -131,7 +131,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
 
 
   function(model, method, n) {
-    message("--------------------------------------------------------------------------------")
+    message("================================================================================")
     message(str_c(model, method, n, sep = " "))
 
     ## Setup
@@ -188,7 +188,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
           saveRDS(dt, file = filename)
         }
 
-        message("--------------------------------------------------------------------------------\n")
+        message("================================================================================")
         ## Return results.
         return(dt)
       },
@@ -210,12 +210,14 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
   dir.create(dir, recursive = TRUE)
 
   run_simulation <- make_simulation(runs, alpha_sig, dir)
-
+  start <- Sys.time()
   dt <- as.data.table(expand_grid(model = model, method = method, n = n))[
     order(n, method, model)][,
     c("coverage", "leng", "conditional_coverage", "conditional_leng")
     := run_simulation(model, method, n),
     by = .I][]
+  elapsed <- difftime(Sys.time(), start, units = "hours")
+  message(str_c("Overall time:", format(round(elapsed, 3)), sep = " "))
 
   saveRDS(dt, file = file.path(dir, str_c("result", format(Sys.time(), "%H%M%S"), ".rds")))
 
