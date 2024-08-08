@@ -20,8 +20,8 @@ rmodel <- function(n, model, x) {
     "P" = rpois(n, pmin(pmax(x, 1), 6)),
     "NI" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 * (x > 7),
     "S" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
-    "AR(1)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
-    "AR(2)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
+    "AR(S)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)),
+    "AR(NI)" = rgamma(n, shape = sqrt(x), scale = pmin(pmax(x, 1), 6)) - 2 * (x > 7),
     "Uniform" = runif(n),
     "S1(Uniform)" = runif(n, 1 + x / 10, 2 + 2 * x / 10),
     "S1(Beta)" = {
@@ -55,7 +55,7 @@ generate_data <- function(n_train, n_valid, n_test, model) {
   ## `Y' is drawn conditional on `X', according to `model'.
   n <- n_train + n_valid + n_test
   switch(model,
-    "AR(1)" = {
+    "AR(S)" = {
       X <- numeric(n)
       steps <- runif(n - 1, -1, 1)
       X[1] <- runif(1, 0, 10)
@@ -67,23 +67,21 @@ generate_data <- function(n_train, n_valid, n_test, model) {
       }
       X <- X + 5
       X <- pmin(pmax(X, 0), 10)
-      data.table(X = X)[, Y := rmodel(n, "AR(1)", X)][]
+      data.table(X = X)[, Y := rmodel(n, "AR(S)", X)][]
     },
-    "AR(2)" = {
+    "AR(NI)" = {
       X <- numeric(n)
       steps <- runif(n - 1, -1, 1)
-      X[c(1, 2)] <- runif(2, 0, 10)
-      for (i in 3:(n_train+n_valid)) {
-        X[i] <- 0.95 * X[i-1] - 0.94 * X[i-2] + steps[i - 2]
+      X[1] <- runif(1, 0, 10)
+      for (i in 2:(n_train+n_valid)) {
+        X[i] <- 0.95 * X[i-1] + steps[i - 1]
       }
       for (i in (n_train+n_valid+(1:n_test))) {
-        X[i] <- 0.95 * X[n_train+n_valid] -
-          0.94 * X[n_train+n_valid-1] +
-          steps[i - 2]
+        X[i] <- 0.95 * X[n_train+n_valid] + steps[i - 1]
       }
       X <- X + 5
       X <- pmin(pmax(X, 0), 10)
-      data.table(X = X)[, Y := rmodel(n, "AR(2)", X)][]
+      data.table(X = X)[, Y := rmodel(n, "AR(NI)", X)][]
     },
     data.table(X = runif(n, 0, 10))[, Y := rmodel(n, model, X)][]
   )
