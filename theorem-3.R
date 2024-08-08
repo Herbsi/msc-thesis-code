@@ -1,7 +1,7 @@
 source("lib.R")
 
 run_experiment(
-  model = c("D", "P", "NI", "S", "AR(S)", "AR(NI)"),
+  model = c("NI", "P", "S", "AR(P)", "AR(NI)","AR(S)"),
   method = c("CP_OLS", "CP_LOC", "DR", "IDR", "QR"),
   n = 2^c(7:14),
   runs = 1024,
