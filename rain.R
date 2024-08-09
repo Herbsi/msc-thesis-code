@@ -63,6 +63,7 @@ run_analysis <- function(airport, horizon, method, indices, config) {
       leng = mean(dt$conditional_leng, na.rm = TRUE),
       ## Summarise the conditional length by binning it according to X
       conditional_coverage_mse = cc_mse,
+      ## TODO 2024-08-09 Think of a better way to summarise/compare conditional length.
       conditional_leng_sd = sd(dt$conditional_leng, na.rm = TRUE)
     )
   }
@@ -102,8 +103,6 @@ run_analysis <- function(airport, horizon, method, indices, config) {
 }
 
 
-
-
 ### Analysis -------------------------------------------------------------------
 
 dir <- file.path("results", "precipitation",  format(Sys.time(), "%Y%m%d%H%M%S"))
@@ -133,7 +132,8 @@ for (config in configs) {
     mutate(indices = map2(n, run, config$indices), .keep = "unused") |> 
     ## Perform calculations.
     mutate(compute = mcmapply(run_analysis, airport, horizon, method, indices,
-      MoreArgs = list(config = config$name), mc.cores = numCores)) |> print() |>
+      MoreArgs = list(config = config$name), SIMPLIFY = FALSE,
+      mc.cores = numCores)) |> 
     unnest_wider(compute) |>
     as.data.table()
 
