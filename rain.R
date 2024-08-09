@@ -1,7 +1,7 @@
 library(data.table)
 library(dplyr, include.only = c("mutate"))
 library(furrr, include.only = c("future_pmap"))
-library(future)
+library(parallel)
 library(purrr, include.only = c("map2"))
 library(stringr, include.only = c("str_c"))
 library(tidyr, include.only = c("expand_grid", "unnest_wider"))
@@ -50,53 +50,58 @@ generate_indices_ziegel <- function(n, run) {
 
 
 run_analysis <- function(airport, horizon, method, indices, config) {
-  message(str_c(airport, horizon, method, sep = " "))
+  summarise_analysis <- function(dt) {
+    glm_form <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
+      response = "conditional_coverage")
+    fm <- glm(glm_form, data = dt, family = binomial(link = "logit"))
+    pred <- predict(fm, newdata = dt, type = "response")
+    cc_mse <- sqrt(mean((pred - (1 - alpha_sig))^2)) 
+
+    list(## Estimate the unconditional coverage as the overall mean.
+      coverage = mean(dt$conditional_coverage, na.rm = TRUE),
+      ## Similarly for the length.
+      leng = mean(dt$conditional_leng, na.rm = TRUE),
+      ## Summarise the conditional length by binning it according to X
+      conditional_coverage_mse = cc_mse,
+      conditional_leng_sd = sd(dt$conditional_leng, na.rm = TRUE)
+    )
+  }
+
+  form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
+
+  ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
+  ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
+  varNames <- names(precipitation)[-c((1:4), 6)]
+
+  ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
+  ## increasing convex order on the remaining variables (group '2').
+  groups <- setNames(c(1, rep(2, 50)), varNames)
+  orders <- c("comp" = 1, "icx" = 2)
   
   dt <- precipitation[airport == ap & horizon == hz,
     env = list(ap = I(airport), hz = I(horizon))]
 
   with(indices, {
-    form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
-
-    ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
-    ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
-    varNames <- names(precipitation)[-c((1:4), 6)]
-
-    ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
-    ## increasing convex order on the remaining variables (group '2').
-    groups <- setNames(c(1, rep(2, 50)), varNames)
-    orders <- c("comp" = 1, "icx" = 2)
-
+    message(str_c(airport, horizon, method, train_ind[1], sep = " "))
     start <- Sys.time()
-    dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind],
-      alpha_sig = alpha_sig, groups = groups, orders = orders)
+    dt <- summarise_analysis(dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind],
+      alpha_sig = alpha_sig,
+      method = "fn", # QR(*) arguments
+      groups = groups, orders = orders # IDR(*) arguments
+    ))
     elapsed <- difftime(Sys.time(), start, units = "secs")
     message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
+    
     subDir <- file.path(dir, config)
     dir.create(subDir, recursive = TRUE, showWarnings = FALSE)
     saveRDS(dt, file = file.path(subDir, str_c(str_c(airport, horizon, method,
       train_ind[1], sep = "_"), ".rds")))
+    
     dt
   })
 }
 
 
-summarise_analysis <- function(dt) {
-  glm_form <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
-    response = "conditional_coverage")
-  fm <- glm(glm_form, data = dt, family = binomial(link = "logit"))
-  pred <- predict(fm, newdata = dt, type = "response")
-  cc_mse <- sqrt(mean((pred - (1 - alpha_sig))^2)) 
-
-  list(## Estimate the unconditional coverage as the overall mean.
-    coverage = mean(dt$conditional_coverage, na.rm = TRUE),
-    ## Similarly for the length.
-    leng = mean(dt$conditional_leng, na.rm = TRUE),
-    ## Summarise the conditional length by binning it according to X
-    conditional_coverage_mse = cc_mse,
-    conditional_leng_sd = sd(dt$conditional_leng, na.rm = TRUE)
-  )
-}
 
 
 ### Analysis -------------------------------------------------------------------
@@ -115,20 +120,25 @@ configs <- list(
 methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
 columns <- c("coverage", "leng", "conditional_coverage_mse", "conditional_leng_sd")
 
-plan(multicore, workers = availableCores() - 1)
+numCores <- detectCores() - 1
 
 for (config in configs) {
   message(config$name)
   
+  start <- Sys.time()
+  
   ## Create evaluation grid
   result <- precipitation[, .(n = .N), keyby = .(airport, horizon)] |>
     expand_grid(method = methods, run = config$runs) |>
-    mutate(indices = map2(n, run, config$indices), config = config$name ,
-      .keep = "unused") |> ## Perform calculations.
-    mutate(compute = future_pmap(list(airport, horizon, method, indices, config),
-      \(...) summarise_analysis(run_analysis(...)))) |>
+    mutate(indices = map2(n, run, config$indices), .keep = "unused") |> 
+    ## Perform calculations.
+    mutate(compute = mcmapply(run_analysis, airport, horizon, method, indices,
+      MoreArgs = list(config = config$name), mc.cores = numCores)) |> print() |>
     unnest_wider(compute) |>
     as.data.table()
+
+  elapsed <- difftime(Sys.time(), start, units = "secs")
+  message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
   
   result[, indices := NULL]
 

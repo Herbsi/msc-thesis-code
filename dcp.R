@@ -3,7 +3,7 @@ library(purrr, include.only = c("imap_dbl"))
 library(isodistrreg)
 library(quantreg)
 
-dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 0.1, ...) {
+dcp <- function(dcp_method, formula, data_train, data_valid, data_test, alpha_sig = 0.1, ...) {
   ## Remaining arguments `...' get passed on to `dcp_fit'.
 
   ## Extract column name of response
@@ -13,7 +13,7 @@ dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 
   ys <- quantile(unique(data_test[, Y, env = list(Y = Y)]), tau) # This extracts the `Y' column as a vector.
 
   ## Fit model
-  fit <- dcp_fit(method, formula, data_train, alpha_sig = alpha_sig, tau = tau, ys = ys, ...)
+  fit <- dcp_fit(dcp_method, formula, data_train, alpha_sig = alpha_sig, tau = tau, ys = ys, ...)
 
   ## Calibrate model
   scores_valid <- dcp_score(fit, data_valid)
@@ -31,16 +31,16 @@ dcp <- function(method, formula, data_train, data_valid, data_test, alpha_sig = 
 }
 
 
-dcp_fit <- function(method, formula, data, ...) {
+dcp_fit <- function(dcp_method, formula, data, ...) {
   args <- list(...)
-  switch(method,
+  switch(dcp_method,
     "CP_LOC" = dcp_fit.cp_loc(formula, data),
     "CP_OLS" = dcp_fit.lm(formula, data),
     "DR" = dcp_fit.dr(formula, data, args$ys),
     "IDR" = dcp_fit.idrfit(formula, data, ys = args$ys, groups = args$groups, orders = args$orders),
     "IDR*" = dcp_fit.idrfit_opt(formula, data, args$alpha_sig, ys = args$ys, tau = args$tau, groups = args$groups, orders = args$orders),
-    "QR" = dcp_fit.rqs(formula, data, args$tau),
-    "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, args$tau)
+    "QR" = dcp_fit.rqs(formula, data, tau = args$tau, method = args$method),
+    "QR*" = dcp_fit.rq_opt(formula, data, args$alpha_sig, tau = args$tau, method = args$method)
   )
 }
 
@@ -63,8 +63,8 @@ dcp_leng <- function(fit, data, threshold) {
 
 ### QR -------------------------------------------------------------------------
 
-dcp_fit.rqs <- function(formula, data, tau) {
-  rq(formula, tau = tau, data = data)
+dcp_fit.rqs <- function(formula, data, tau, method = "br") {
+  rq(formula, tau = tau, data = data, method = method)
 }
 
 dcp_predict.rqs <- function(fit, data) {
@@ -95,8 +95,8 @@ dcp_leng.rqs <- function(fit, data, threshold) {
 
 ### QR* ------------------------------------------------------------------------
 
-dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau) {
-  rq <- rq(formula, tau = tau, data = data)
+dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau, method = "br") {
+  rq <- rq(formula, tau = tau, data = data, method = method)
 
   fit <- list(rq = rq, alpha_sig = alpha_sig)
   class(fit) <- "rq_opt"
