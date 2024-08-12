@@ -142,7 +142,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
       ## - X = { Xₙ₊₁⁽ʲ⁾ : j = 1 … n_test }.
       ## - conditional_coverage { 1[Yₙ₊₁⁽ʲ⁾ ∈ C(Xₙ₊₁⁽ʲ⁾)] : j = 1, …, n_test }.
       ## - conditional_leng { |C(Xₙ₊₁⁽ʲ⁾)| : j = 1, …, n_test } a list of estimates for C(Xₙ₊₁).
-      dcp(method, Y ~ X, data_train, data_valid, data_test, alpha_sig)
+      dcp(dcp_method = method, formula = Y ~ X, data_train = data_train, data_valid = data_valid, data_test = data_test, alpha_sig = alpha_sig)
     }
 
     ## Sometimes, …, sometimes the code below fails.

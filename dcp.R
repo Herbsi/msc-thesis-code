@@ -63,8 +63,8 @@ dcp_leng <- function(fit, data, threshold) {
 
 ### QR -------------------------------------------------------------------------
 
-dcp_fit.rqs <- function(formula, data, tau, method = "br") {
-  rq(formula, tau = tau, data = data, method = method)
+dcp_fit.rqs <- function(formula, data, tau, method = NULL) {
+  rq(formula, tau = tau, data = data, method = ifelse(is.null(method), "br", method))
 }
 
 dcp_predict.rqs <- function(fit, data) {
@@ -95,8 +95,8 @@ dcp_leng.rqs <- function(fit, data, threshold) {
 
 ### QR* ------------------------------------------------------------------------
 
-dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau, method = "br") {
-  rq <- rq(formula, tau = tau, data = data, method = method)
+dcp_fit.rq_opt <- function(formula, data, alpha_sig, tau, method = NULL) {
+  rq <- rq(formula, tau = tau, data = data, method = ifelse(is.null(method), "br", method))
 
   fit <- list(rq = rq, alpha_sig = alpha_sig)
   class(fit) <- "rq_opt"
