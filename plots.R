@@ -1,15 +1,48 @@
+library(dplyr, include.only = c("filter", "mutate", "pull", "rename", "select"))
 library(ggplot2)
+library(purrr, include.only = c("map", "map_dbl"))
+library(scales)
+library(tibble)
+library(tidyr, include.only = c("pivot_longer", "unnest"))
 
-source("lib.R")
+rename_for_tex <- Vectorize(function(string) {
+  rename_list <- list(
+    ## TODO 2024-08-12 Output to tikz instead.
+    "CP_LOC" = "CP-LOC",
+    "CP_OLS" = "CP-OLS"
+    ## "CP_LOC" = "\\textsc{\\idx{cp-loc}}",
+    ## "CP_OLS" = "\\textsc{\\idx{cp-ols}}",
+    ## "DR" = "\\abb{glmdr}",
+    ## "IDR" = "\\abb{idr}",
+    ## "QR" = "\\abb{qr}",
+    ## "IDR*" = "\\abb{idr}\\(\\star\\)",
+    ## "QR*" = "\\abb{qr}\\(\\star\\)",
+    ##
+    ## "AR(NI)" = "\\idx{model-ARNI}",
+    ## "AR(P)" = "\\idx{model-ARP}",
+    ## "AR(S)" = "\\idx{model-ARS}",
+    ## "NI" = "\\idx{model-NI}",
+    ## "P" = "\\idx{model-P}",
+    ## "S" = "\\idx{model-S}",
+    ##
+    ## "S1(Beta)" = "\\idx{model-S1Beta}",
+    ## "S1(Bound above)" = "\\idx{model-S1BA}",
+    ## "S1(No bounds)" = "\\idx{model-S1NB}",
+    ## "S1(Uniform)" = "\\idx{model-S1Unif}"
+    )
+  new_name <- rename_list[[string]]
+  ifelse(is.null(new_name), string, new_name)
+})
 
-plot_unconditional <- function(results_tibble) {
-  results_tibble |>
+
+plot_unconditional <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     pivot_longer(cols = c(coverage, leng), names_to = "metric", values_to = "value") |>
-    ggplot(aes(x = n, y = value, color = method_name, group = method_name)) +
+    ggplot(aes(x = n, y = value, color = method, group = method)) +
     geom_line() +
-    facet_grid(metric ~ model_name, scales = "free_y") +
+    facet_grid(metric ~ model, scales = "free_y") +
     labs(
-      title = "Coverage and Leng vs n for each Method and Model",
       x = "n",
       color = "Method",
     ) +
@@ -17,44 +50,56 @@ plot_unconditional <- function(results_tibble) {
     theme_minimal()
 }
 
-## Unconditional ----------------------------------------------------------------
+### Unconditional --------------------------------------------------------------
 
 geom_unconditional <- function(title, y, scales = "fixed") {
-  list(geom_line(aes(x = n, color = method_name, group = method_name)),
-      facet_grid(model_name ~ ., scales = scales),
+  list(geom_line(aes(x = n, color = method, group = method)),
+      facet_grid(model ~ ., scales = scales),
       labs(title = title,
         x = "n",
         y = y,
         colour = "Method"),
-      scale_x_continuous(trans = "log2"),
+      scale_x_continuous(transform = "log2"),
       theme_minimal())
 }
 
 
-plot_unconditional_coverage <- function(results_tibble) {
-  ggplot(results_tibble,
-    aes(y = coverage)) +
+plot_unconditional_coverage <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    ggplot(aes(y = coverage)) +
     geom_unconditional(
       title = "Unconditional coverage vs n for each method and model",
       y = "Coverage")
+  ## TODO 2024-08-08 scale_y_log10() does not work for some reason.
 }
 
 
-plot_unconditional_leng <- function(results_tibble) {
-  ggplot(results_tibble,
-    aes(y = leng)) +
+plot_unconditional_leng <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    ggplot(aes(y = leng)) +
     geom_unconditional(
       title = "Unconditional length vs n for each method and model",
       y = "Length",
-      scales = "free_y")
+      scales = "free_y") +
+    scale_y_log10()
 }
 
 
-## Conditional ------------------------------------------------------------------
+### Conditional ----------------------------------------------------------------
+
+predict.tbl_df <- function(object, newdata) {
+  intercept <- object |> filter(term == "(Intercept)") |> pull(estimate)
+  slope <- object |> filter(term == "X") |> pull(estimate)
+  linear_predictor <- intercept + slope * newdata
+  plogis(linear_predictor)
+}
+
 
 geom_conditional <- function(title, y, scales = "fixed") {
-  list(geom_line(aes(x = X, color = method_name)),
-      facet_grid(model_name ~ n, scales = scales),
+  list(geom_line(aes(x = X, color = method)),
+      facet_grid(model ~ n, scales = scales),
       labs(title = title,
         x = "X",
         y = y,
@@ -65,8 +110,22 @@ geom_conditional <- function(title, y, scales = "fixed") {
 }
 
 
-plot_conditional_coverage <- function(results_tibble) {
-  results_tibble |> unnest(conditional_coverage) |>
+plot_conditional_coverage <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(conditional_coverage =
+             ## I am bad at naming.  What happens here is that, the column
+             ## `conditional_coverage' of `dt' is mutated to another column
+             ## with the same name, but where each entry is now a tibble with
+             ## two columns: `X' and `conditional_coverage'.
+             ## `X' is a fine grid in [0, 10]; `conditional_coverage' is the
+             ## GLM inside `dt$conditional_coverage' evaluated along that grid.
+             map(conditional_coverage, \(tibble) {
+               tibble(X = seq(0, 10, length.out = 1000),
+                 conditional_coverage = predict(tibble, X))
+             })) |>
+    ## To plot this evaluated GLM, we unnest the tibble.
+    unnest(conditional_coverage) |>
     ggplot(aes(y = conditional_coverage)) +
     geom_conditional(
       title = "Conditional coverage by X for each combination of n, model, and method",
@@ -74,9 +133,12 @@ plot_conditional_coverage <- function(results_tibble) {
 }
 
 
-plot_conditional_leng <- function(results_tibble) {
-  results_tibble |> unnest(conditional_leng) |>
-    mutate(X = map_dbl(bin, \(bin) {
+plot_conditional_leng <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    unnest(conditional_leng, names_sep = ".") |>
+    rename(conditional_leng = conditional_leng.leng) |>
+    mutate(X = map_dbl(conditional_leng.bin, \(bin) {
       unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
         as.numeric() |>
         mean()
@@ -89,42 +151,59 @@ plot_conditional_leng <- function(results_tibble) {
 }
 
 
-## Summaries --------------------------------------------------------------------
+### Conditional things, aggregated over X --------------------------------------
 
-plot_conditional_coverage_mse <- function(results_tibble) {
-  results_tibble |>
-    conditional_coverage_mse(cc_mse) |>
+plot_conditional_coverage_mse <- function(dt) {
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(cc_mse = map_dbl(conditional_coverage,
+      \(tibble) {
+        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1000)) - 0.9)^2))
+      })) |>
     ggplot(aes(y = cc_mse)) +
-    geom_unconditional(title = "MSE(coverage - 0.9) vs n for each Method and Model",
-      y = "MSE(coverage - 0.9)")
-}
-
-
-plot_conditional_coverage_mae <- function(results_tibble) {
-  results_tibble |>
-    conditional_coverage_mae(cc_mae) |>
-    ggplot(aes(y = cc_mae)) +
-    geom_unconditional(title = "MAE(coverage - 0.9) vs n for each Method and Model",
-      y = "MAE(coverage - 0.9)")
-}
-
-
-plot_conditional_coverage_sd <- function(results_tibble) {
-  results_tibble |>
-    conditional_coverage_sd(cc_sd) |>
-    ggplot(aes(y = cc_sd)) +
     geom_unconditional(
-      title = "sd(conditional coverage) vs n for each Method and Model",
-      y = "sd(conditional coverage)")
+      title = "MSE(coverage - 0.9) vs n for each Method and Model",
+      y = "MSE(coverage - 0.9)") +
+    scale_y_log10()
 }
 
 
-plot_conditional_leng_sd <- function(results_tibble) {
-  results_tibble |>
-    conditional_leng_sd(cc_sd) |>
-    ggplot(aes(y = cc_sd)) +
-    geom_unconditional(
-      title = "sd(conditional length) vs n for each Method and Model",
-      y = "sd(conditional length)",
-      scales = "free_y")
+## TODO 2024-08-08 Think of a way to compare interval lengths, provided the coverage is good.
+
+
+plot_conditional_leng_diff <- function(dt) {
+  ## TODO Plot relative improvement instead of absolute difference
+  asinh_trans <- trans_new("asinh",
+    transform = function(x) asinh(x),
+    inverse = function(x) sinh(x))
+
+  dt |>
+    filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
+    group_by(model, n, method = substring(method, first=0, last=1)) |>
+    mutate(method = if_else(method == "I", "IDR", "QR")) |>
+    summarise(conditional_leng = {
+      ## conditional_leng is a list of two dfs.
+      ## Because dt is ordered by method, the first df comes from IDR (resp. QR)
+      ## and the second df comes from IDR* (resp. QR*)
+      ## We bind these two together, duplicating each `bin' value.
+      ## Then, per bin, we calculate -(leng(IDR*) - leng(IDR)) (resp. -(leng(IDR*) - leng(IDR)))
+      ## via the call to `diff'.
+      bind_rows(conditional_leng) |>
+        group_by(bin) |>
+        summarise(conditional_leng = -diff(leng)) |>
+        list()
+    } , .groups = "drop") |>
+    unnest(conditional_leng) |>
+    mutate(X = map_dbl(bin, \(bin) {
+      unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
+        as.numeric() |>
+        mean()
+    })) |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    ggplot(aes(y = conditional_leng)) +
+    geom_conditional(
+      title = "Conditional Length Improvement",
+      y = "Conditional Length Difference (Regular - Optimal)",
+      scales = "free_y") +
+    scale_y_continuous(transform = asinh_trans)
 }
