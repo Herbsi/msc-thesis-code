@@ -58,29 +58,89 @@ dev.off()
 
 ### Theorem 3 – Conditional coverage
 
+pdf(file = "../tex/images/vectors/conditionalCoverage.pdf",
+  width = 4 * 2.25,
+  height = 3 * 2.25,
+  pointsize = pointsize
+)
 results3 |>
-  ## TODO 2024-08-08 Subset models here.
   filter(n %in% n_values) |>
+  filter(model %in% c("AR(NI)", "NI", "AR(P)", "S")) |>
   plot_conditional_coverage()
+ dev.off()
+
+
+pdf(file = "../tex/images/vectors/conditionalCoverageMSE.pdf",
+  width = 4 * 2.25,
+  height = 3 * 2.25,
+  pointsize = pointsize
+)
+results3 |>
+  filter(model %in% c("AR(NI)", "NI", "AR(P)", "S")) |>
+  plot_conditional_coverage_mse()
 dev.off()
 
+
+pdf(file = "../tex/images/vectors/conditionalLeng.pdf",
+  width = 4 * 2.25,
+  height = 3 * 2.25,
+  pointsize = pointsize
+)
 results3 |>
   filter(n %in% n_values) |>
+  filter(model %in% c("AR(NI)", "NI", "AR(P)", "S")) |>
   plot_conditional_leng()
-
-results3 |>
-  plot_conditional_coverage_mse()
+dev.off()
 
 ### Theorem 4 – Conditional coverage + Length improvement.
 
-results4 |>
-  ## filter(n %in% n_values) |>
-  plot_conditional_coverage_mse()
+rename_for_csv <- Vectorize(function(string) {
+  rename_list <- list(
+    ## TODO 2024-08-12 Output to tikz instead.
+    "CP_LOC" = "\\textsc{\\idx{cp-loc}}",
+    "CP_OLS" = "\\textsc{\\idx{cp-ols}}",
+    "DR" = "\\abb{glmdr}",
+    "IDR" = "\\abb{idr}",
+    "QR" = "\\abb{qr}",
+    "IDR*" = "\\abb{idr}\\(\\star\\)",
+    "QR*" = "\\abb{qr}\\(\\star\\)",
+    ##
+    ## "AR(NI)" = "\\idx{model-ARNI}",
+    ## "AR(P)" = "\\idx{model-ARP}",
+    ## "AR(S)" = "\\idx{model-ARS}",
+    ## "NI" = "\\idx{model-NI}",
+    ## "P" = "\\idx{model-P}",
+    ## "S" = "\\idx{model-S}",
+    ##
+    "S1(Beta)" = "\\idx{model-S1Beta}",
+    "S1(Bound above)" = "\\idx{model-S1BA}",
+    "S1(No bounds)" = "\\idx{model-S1NB}",
+    "S1(Uniform)" = "\\idx{model-S1Unif}"
+    )
+  new_name <- rename_list[[string]]
+  ifelse(is.null(new_name), string, new_name)
+})
 
-results4 |>
+dir.create(file.path("..", "tex", "data"), recursive = TRUE)
+add_cc_mse(results4) |>
   filter(n %in% n_values) |>
-  plot_conditional_leng()
+  filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
+  select(n, model, method, coverage, cc_mse) |>
+  arrange(n, model, method) |>
+  mutate(
+    model = rename_for_csv(model),
+    method = rename_for_csv(method),
+    coverage = round(coverage, 4),
+    cc_mse = round(cc_mse, 4)) |>
+  rename(Model = "model", Method = "method", Coverage = "coverage", "Conditional coverage \\textsc{mse}" = cc_mse) |>
+  fwrite(file = "../tex/data/results4Coverage.csv", scipen=1000)
 
+pdf(file = "../tex/images/vectors/conditionalLengDiff.pdf",
+  width = 4 * 2.25,
+  height = 3 * 2.25,
+  pointsize = pointsize
+)
 results4 |>
   filter(n %in% n_values) |>
   plot_conditional_leng_diff()
+dev.off()
