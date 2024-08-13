@@ -149,16 +149,24 @@ plot_conditional_leng <- function(dt) {
 
 ### Conditional things, aggregated over X --------------------------------------
 
-plot_conditional_coverage_mse <- function(dt) {
+add_cc_mse <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     mutate(cc_mse = map_dbl(conditional_coverage,
       \(tibble) {
-        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1000)) - 0.9)^2))
+        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1001)) - 0.9)^2))
       })) |>
+    as.data.table()
+}
+
+
+plot_conditional_coverage_mse <- function(dt) {
+  if(!("cc_mse" %in% names(dt))) {
+    dt <- add_cc_mse(dt)
+  }
+  dt |>
+    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     ggplot(aes(y = cc_mse)) +
     geom_unconditional(
-      title = "MSE(coverage - 0.9) vs n for each Method and Model",
       y = "MSE(coverage - 0.9)") +
     scale_y_log10()
 }
@@ -168,11 +176,6 @@ plot_conditional_coverage_mse <- function(dt) {
 
 
 plot_conditional_leng_diff <- function(dt) {
-  ## TODO Plot relative improvement instead of absolute difference
-  asinh_trans <- trans_new("asinh",
-    transform = function(x) asinh(x),
-    inverse = function(x) sinh(x))
-
   dt |>
     filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
     group_by(model, n, method = substring(method, first=0, last=1)) |>
@@ -182,11 +185,11 @@ plot_conditional_leng_diff <- function(dt) {
       ## Because dt is ordered by method, the first df comes from IDR (resp. QR)
       ## and the second df comes from IDR* (resp. QR*)
       ## We bind these two together, duplicating each `bin' value.
-      ## Then, per bin, we calculate -(leng(IDR*) - leng(IDR)) (resp. -(leng(IDR*) - leng(IDR)))
+      ## Then, per bin, we calculate -(leng(IDR*) - leng(IDR)) / leng(IDR) (resp. -(leng(IDR*) - leng(IDR)))
       ## via the call to `diff'.
       bind_rows(conditional_leng) |>
         group_by(bin) |>
-        summarise(conditional_leng = -diff(leng)) |>
+        summarise(conditional_leng = -diff(leng) / leng[1]) |>
         list()
     } , .groups = "drop") |>
     unnest(conditional_leng) |>
@@ -198,8 +201,6 @@ plot_conditional_leng_diff <- function(dt) {
     mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     ggplot(aes(y = conditional_leng)) +
     geom_conditional(
-      title = "Conditional Length Improvement",
-      y = "Conditional Length Difference (Regular - Optimal)",
-      scales = "free_y") +
-    scale_y_continuous(transform = asinh_trans)
+      y = "Relative difference (Regular - Optimal) / Regular",
+      scales = "free_y")
 }
