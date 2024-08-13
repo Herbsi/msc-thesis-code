@@ -45,6 +45,7 @@ plot_unconditional <- function(dt) {
     facet_grid(metric ~ model, scales = "free_y") +
     labs(
       x = "n",
+      y = "",
       color = "Method",
     ) +
     scale_x_continuous(trans = "log2") +
@@ -53,11 +54,10 @@ plot_unconditional <- function(dt) {
 
 ### Unconditional --------------------------------------------------------------
 
-geom_unconditional <- function(title, y, scales = "fixed") {
+geom_unconditional <- function(y, scales = "fixed") {
   list(geom_line(aes(x = n, color = method, group = method)),
       facet_grid(model ~ ., scales = scales),
-      labs(title = title,
-        x = "n",
+      labs(x = "n",
         y = y,
         colour = "Method"),
       scale_x_continuous(transform = "log2"),
@@ -70,7 +70,6 @@ plot_unconditional_coverage <- function(dt) {
     mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     ggplot(aes(y = coverage)) +
     geom_unconditional(
-      title = "Unconditional coverage vs n for each method and model",
       y = "Coverage")
   ## TODO 2024-08-08 scale_y_log10() does not work for some reason.
 }
@@ -81,7 +80,6 @@ plot_unconditional_leng <- function(dt) {
     mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
     ggplot(aes(y = leng)) +
     geom_unconditional(
-      title = "Unconditional length vs n for each method and model",
       y = "Length",
       scales = "free_y") +
     scale_y_log10()
@@ -98,11 +96,10 @@ predict.tbl_df <- function(object, newdata) {
 }
 
 
-geom_conditional <- function(title, y, scales = "fixed") {
+geom_conditional <- function(y, scales = "fixed") {
   list(geom_line(aes(x = X, color = method)),
       facet_grid(model ~ n, scales = scales),
-      labs(title = title,
-        x = "X",
+      labs(x = "X",
         y = y,
         color = "Method",
         fill = "Method"),
@@ -129,7 +126,6 @@ plot_conditional_coverage <- function(dt) {
     unnest(conditional_coverage) |>
     ggplot(aes(y = conditional_coverage)) +
     geom_conditional(
-      title = "Conditional coverage by X for each combination of n, model, and method",
       y = "Conditional Coverage")
 }
 
@@ -146,7 +142,6 @@ plot_conditional_leng <- function(dt) {
     })) |>
     ggplot(aes(y = conditional_leng)) +
     geom_conditional(
-      title = "Conditional length by X for each combination of n, model, and method",
       y = "Conditional Length",
       scales = "free_y")
 }
