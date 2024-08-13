@@ -1,15 +1,16 @@
-library(dplyr, include.only = c("filter", "mutate", "pull", "rename", "select"))
+library(dplyr)
 library(ggplot2)
-library(purrr, include.only = c("map", "map_dbl"))
+library(purrr)
 library(scales)
 library(tibble)
-library(tidyr, include.only = c("pivot_longer", "unnest"))
+library(tidyr)
 
 rename_for_tex <- Vectorize(function(string) {
   rename_list <- list(
     ## TODO 2024-08-12 Output to tikz instead.
     "CP_LOC" = "CP-LOC",
-    "CP_OLS" = "CP-OLS"
+    "CP_OLS" = "CP-OLS",
+    "DR" = "GLMDR"
     ## "CP_LOC" = "\\textsc{\\idx{cp-loc}}",
     ## "CP_OLS" = "\\textsc{\\idx{cp-ols}}",
     ## "DR" = "\\abb{glmdr}",

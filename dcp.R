@@ -1,5 +1,5 @@
 library(data.table, warn.conflicts=FALSE)
-library(purrr, include.only = c("imap_dbl"))
+library(purrr)
 library(isodistrreg)
 library(quantreg)
 
