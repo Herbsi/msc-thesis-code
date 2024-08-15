@@ -22,7 +22,7 @@ n_values <- c(128, 1024, 16384)
 pointsize <- 11
 textwidth <- 418.2555 # NOTE <2024-05-22 Wed> Hard-coded `\the\textwidth' from LaTeX document here.
 
-### Theorem 2 - Unconditional coverage
+### Theorem 2 - Unconditional coverage -----------------------------------------
 
 pdf(file = "../tex/images/vectors/unconditionalCoverage.pdf",
   width = textwidth / 72.27, # Transform from pt to in.
@@ -56,7 +56,7 @@ pdf(file = "../tex/images/vectors/unconditional.pdf",
 plot_unconditional(results3)
 dev.off()
 
-### Theorem 3 – Conditional coverage
+### Theorem 3 – Conditional coverage -------------------------------------------
 
 pdf(file = "../tex/images/vectors/conditionalCoverage.pdf",
   width = 4 * 2.25,
@@ -92,7 +92,7 @@ results3 |>
   plot_conditional_leng()
 dev.off()
 
-### Theorem 4 – Conditional coverage + Length improvement.
+### Theorem 4 – Conditional coverage + Length improvement. ---------------------
 
 rename_for_csv <- Vectorize(function(string) {
   rename_list <- list(
@@ -102,8 +102,8 @@ rename_for_csv <- Vectorize(function(string) {
     "DR" = "\\abb{glmdr}",
     "IDR" = "\\abb{idr}",
     "QR" = "\\abb{qr}",
-    "IDR*" = "\\abb{idr}\\(\\star\\)",
-    "QR*" = "\\abb{qr}\\(\\star\\)",
+    "IDR*" = "\\dcpstar{\\abb{idr}}",
+    "QR*" = "\\dcpstar{\\abb{qr}}",
     ##
     ## "AR(NI)" = "\\idx{model-ARNI}",
     ## "AR(P)" = "\\idx{model-ARP}",
@@ -121,19 +121,34 @@ rename_for_csv <- Vectorize(function(string) {
   ifelse(is.null(new_name), string, new_name)
 })
 
-dir.create(file.path("..", "tex", "data"), recursive = TRUE)
+
+prepare_table_for_csv <- function(dt) {
+  dt |>
+    select(n, model, method, coverage, cc_mse) |>
+    arrange(n, model, method) |>
+    mutate(
+      model = rename_for_csv(model),
+      method = rename_for_csv(method),
+      coverage = round(coverage, 4),
+      cc_mse = round(cc_mse, 4)) |>
+    rename(Model = "model", Method = "method", Coverage = "coverage", "\\textsc{ccmse}" = cc_mse)
+}
+
+
+targetDir <- file.path("..", "tex", "data")
+dir.create(targetDir, recursive = TRUE)
+## Short version for chapter 5
 add_cc_mse(results4) |>
+  filter((method %in% c("IDR", "IDR*") & model %in% c("S1(Beta)", "S1(Uniform)"))
+    | (method %in% c("QR", "QR*") & model %in% c("S1(Bound above)", "S1(No bounds)"))) |>
   filter(n %in% n_values) |>
-  filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
-  select(n, model, method, coverage, cc_mse) |>
-  arrange(n, model, method) |>
-  mutate(
-    model = rename_for_csv(model),
-    method = rename_for_csv(method),
-    coverage = round(coverage, 4),
-    cc_mse = round(cc_mse, 4)) |>
-  rename(Model = "model", Method = "method", Coverage = "coverage", "Conditional coverage \\textsc{mse}" = cc_mse) |>
-  fwrite(file = "../tex/data/results4Coverage.csv", scipen=1000)
+  prepare_table_for_csv() |>
+  fwrite(file = file.path(targetDir, "results4CoverageShort.csv"), scipen=1000)
+
+## Full version for Appendix
+add_cc_mse(results4) |>
+  prepare_table_for_csv() |>
+  fwrite(file = file.path(targetDir, "results4CoverageFull.csv"), scipen=1000)
 
 pdf(file = "../tex/images/vectors/conditionalLengDiff.pdf",
   width = 4 * 2.25,
