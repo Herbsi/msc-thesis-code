@@ -1,10 +1,11 @@
 library(data.table)
-library(dplyr, include.only = c("mutate"))
-library(furrr, include.only = c("future_pmap"))
+library(dplyr)
+library(furrr)
+library(lubridate)
 library(parallel)
-library(purrr, include.only = c("map2"))
-library(stringr, include.only = c("str_c"))
-library(tidyr, include.only = c("expand_grid", "unnest_wider"))
+library(purrr)
+library(stringr)
+library(tidyr)
 
 source("dcp.R")
 alpha_sig <- 0.1
@@ -63,9 +64,11 @@ run_analysis <- function(airport, horizon, method, indices, config) {
       leng = mean(dt$conditional_leng, na.rm = TRUE),
       ## Summarise the conditional length by binning it according to X
       conditional_coverage_mse = cc_mse,
-      ## TODO 2024-08-09 Think of a better way to summarise/compare conditional length.
-      conditional_leng_sd = sd(dt$conditional_leng, na.rm = TRUE)
-    )
+      conditional_leng = {
+        dt[,
+          .(leng = mean(conditional_leng, na.rm = TRUE)),
+          keyby = .(year(date), month(date))]
+      })
   }
 
   form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
@@ -117,7 +120,6 @@ configs <- list(
     indices = generate_indices_ziegel)
 )
 methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
-columns <- c("coverage", "leng", "conditional_coverage_mse", "conditional_leng_sd")
 
 numCores <- detectCores() - 1
 
@@ -142,12 +144,13 @@ for (config in configs) {
   
   result[, indices := NULL]
 
-  ## Mean over runs.
   result <- result[,
-    lapply(.SD, mean),
+    ## Mean over first three statistics
+    c(lapply(.SD[, c("coverage", "leng", "conditional_coverage_mse")], mean),
+      ## Summarise conditional length by grouping by year-month
+      .(conditional_leng = .(rbindlist(.SD$conditional_leng)[, .(leng = mean(leng)), by = .(year, month)]))),
     by = .(airport, horizon, method),
-    .SDcols = columns
-  ]
+    ]
 
   saveRDS(result, file = file.path(dir, str_c("result", config$name, ".rds")))
 }
