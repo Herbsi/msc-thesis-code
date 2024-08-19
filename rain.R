@@ -52,23 +52,26 @@ generate_indices_ziegel <- function(n, run) {
 
 run_analysis <- function(airport, horizon, method, indices, config) {
   summarise_analysis <- function(dt) {
-    glm_form <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
+    glm_full <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
       response = "conditional_coverage")
-    fm <- glm(glm_form, data = dt, family = binomial(link = "logit"))
-    pred <- predict(fm, newdata = dt, type = "response")
-    cc_mse <- sqrt(mean((pred - (1 - alpha_sig))^2)) 
+    fm_full <- glm(glm_full, data = dt, family = binomial(link = "logit"))
+    pred_full <- predict(fm_full, newdata = dt, type = "response")
+    cc_mse_full <- sqrt(mean((pred_full - (1 - alpha_sig))^2)) 
+
+    fm_hres <- glm(conditional_coverage ~ hres, data = dt, family = binomial(link = "logit"))
+    pred_hres <- predict(fm_hres, newdata = dt, type = "response")
+    cc_mse_hres <- sqrt(mean((pred_hres - (1 - alpha_sig))^2)) 
 
     list(## Estimate the unconditional coverage as the overall mean.
       coverage = mean(dt$conditional_coverage, na.rm = TRUE),
       ## Similarly for the length.
       leng = mean(dt$conditional_leng, na.rm = TRUE),
-      ## Summarise the conditional length by binning it according to X
-      conditional_coverage_mse = cc_mse,
-      conditional_leng = {
-        dt[,
-          .(leng = mean(conditional_leng, na.rm = TRUE)),
-          keyby = .(year(date), month(date))]
-      })
+      conditional_coverage_mse_full = cc_mse_full,
+      conditional_coverage_mse_hres = cc_mse_hres,
+      conditional_coverage = dt[, .(date, hres,
+        conditional_coverage_full = pred_full, conditional_coverage_hres = pred_hres)],
+      conditional_leng = dt[, .(date, hres, conditional_leng)]
+    )
   }
 
   form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
@@ -146,9 +149,10 @@ for (config in configs) {
 
   result <- result[,
     ## Mean over first three statistics
-    c(lapply(.SD[, c("coverage", "leng", "conditional_coverage_mse")], mean),
-      ## Summarise conditional length by grouping by year-month
-      .(conditional_leng = .(rbindlist(.SD$conditional_leng)[, .(leng = mean(leng)), by = .(year, month)]))),
+    c(lapply(.SD[, c("coverage", "leng", "conditional_coverage_mse_full", "conditional_coverage_mse_hres")], mean),
+      ## Summarise conditional coverage/length by stitching it them together
+      .(conditional_coverage = .(rbindlist(.SD$conditional_coverage))),
+      .(conditional_leng = .(rbindlist(.SD$conditional_leng)))),
     by = .(airport, horizon, method),
     ]
 
