@@ -5,12 +5,12 @@ library(scales)
 library(tibble)
 library(tidyr)
 
-rename_for_tex <- Vectorize(function(string) {
+rename_for_plot <- Vectorize(function(string) {
   rename_list <- list(
     ## TODO 2024-08-12 Output to tikz instead.
     "CP_LOC" = "CP-LOC",
     "CP_OLS" = "CP-OLS",
-    "DR" = "GLMDR"
+    "DR" = "GLMDR",
     ## "CP_LOC" = "\\textsc{\\idx{cp-loc}}",
     ## "CP_OLS" = "\\textsc{\\idx{cp-ols}}",
     ## "DR" = "\\abb{glmdr}",
@@ -29,8 +29,19 @@ rename_for_tex <- Vectorize(function(string) {
     ## "S1(Beta)" = "\\idx{model-S1Beta}",
     ## "S1(Bound above)" = "\\idx{model-S1BA}",
     ## "S1(No bounds)" = "\\idx{model-S1NB}",
-    ## "S1(Uniform)" = "\\idx{model-S1Unif}"
-    )
+    ## "S1(Uniform)" = "\\idx{model-S1Unif}",
+
+    ## For rain-analysis.R
+    "conditional_coverage_mse_full" = "CCMSE-full",
+    "conditional_coverage_mse_hres" = "CCMSE-HRES",
+    ## TODO 2024-08-20 Fix approach names.
+    "dcp" = "DCP",
+    "ziegel" = "Ziegel",
+    "bru" = "BRU",
+    "fra" = "FRA",
+    "lhr" = "LHR",
+    "zrh" = "ZRH",
+  )
   new_name <- rename_list[[string]]
   ifelse(is.null(new_name), string, new_name)
 })
@@ -38,7 +49,7 @@ rename_for_tex <- Vectorize(function(string) {
 
 plot_unconditional <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     pivot_longer(cols = c(coverage, leng), names_to = "metric", values_to = "value") |>
     ggplot(aes(x = n, y = value, color = method, group = method)) +
     geom_line() +
@@ -67,7 +78,7 @@ geom_unconditional <- function(y, scales = "fixed") {
 
 plot_unconditional_coverage <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     ggplot(aes(y = coverage)) +
     geom_unconditional(
       y = "Coverage")
@@ -77,7 +88,7 @@ plot_unconditional_coverage <- function(dt) {
 
 plot_unconditional_leng <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     ggplot(aes(y = leng)) +
     geom_unconditional(
       y = "Length",
@@ -110,7 +121,7 @@ geom_conditional <- function(y, scales = "fixed") {
 
 plot_conditional_coverage <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     mutate(conditional_coverage =
              ## I am bad at naming.  What happens here is that, the column
              ## `conditional_coverage' of `dt' is mutated to another column
@@ -132,7 +143,7 @@ plot_conditional_coverage <- function(dt) {
 
 plot_conditional_leng <- function(dt) {
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     unnest(conditional_leng, names_sep = ".") |>
     rename(conditional_leng = conditional_leng.leng) |>
     mutate(X = map_dbl(conditional_leng.bin, \(bin) {
@@ -164,7 +175,7 @@ plot_conditional_coverage_mse <- function(dt) {
     dt <- add_cc_mse(dt)
   }
   dt |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     ggplot(aes(y = cc_mse)) +
     geom_unconditional(
       y = "MSE(coverage - 0.9)") +
@@ -198,7 +209,7 @@ plot_conditional_leng_diff <- function(dt) {
         as.numeric() |>
         mean()
     })) |>
-    mutate(model = rename_for_tex(model), method = rename_for_tex(method)) |>
+    mutate(model = rename_for_plot(model), method = rename_for_plot(method)) |>
     ggplot(aes(y = conditional_leng)) +
     geom_conditional(
       y = "Relative difference (Regular - Optimal) / Regular",
