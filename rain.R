@@ -14,10 +14,6 @@ alpha_sig <- 0.1
 
 precipitation <- readRDS("data/precipitation_data.rds")
 
-## Filter out days that do not occur at every location
-## We have 4 locations and 5 horizons, so every date needs to occur 20 times.
-precipitation <- precipitation[precipitation[, .N, by = date][N == 20], on = "date"][, -c("N")]
-
 
 ### Functions ------------------------------------------------------------------
 
@@ -52,7 +48,7 @@ generate_indices_ziegel <- function(n, run) {
 
 run_analysis <- function(airport, horizon, method, indices, config) {
   summarise_analysis <- function(dt) {
-    glm_full <- reformulate(termlabels = names(precipitation)[-c((1:4), 6)],
+    glm_full <- reformulate(termlabels = config$termlabels,
       response = "conditional_coverage")
     fm_full <- glm(glm_full, data = dt, family = binomial(link = "logit"))
     pred_full <- predict(fm_full, newdata = dt, type = "response")
@@ -73,17 +69,18 @@ run_analysis <- function(airport, horizon, method, indices, config) {
       conditional_leng = dt[, .(date, hres, conditional_leng)]
     )
   }
-
-  form <- reformulate(termlabels =  names(precipitation)[-c((1:4), 6)], response = "obs")
+  form <- reformulate(termlabels = config$termlabels, response = "obs")
 
   ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
   ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
-  varNames <- names(precipitation)[-c((1:4), 6)]
-
   ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
   ## increasing convex order on the remaining variables (group '2').
-  groups <- setNames(c(1, rep(2, 50)), varNames)
-  orders <- c("comp" = 1, "icx" = 2)
+  groups <- setNames(c(1, rep(2, length(config$termlabels) - 1)), config$termlabels)
+  orders <- if(length(config$termlabels) > 1) {
+    c("comp" = 1, "icx" = 2)
+  } else {
+    c("comp" = 1)
+  }
   
   dt <- precipitation[airport == ap & horizon == hz,
     env = list(ap = I(airport), hz = I(horizon))]
@@ -99,7 +96,7 @@ run_analysis <- function(airport, horizon, method, indices, config) {
     elapsed <- difftime(Sys.time(), start, units = "secs")
     message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
     
-    subDir <- file.path(dir, config)
+    subDir <- file.path(dir, config$name)
     dir.create(subDir, recursive = TRUE, showWarnings = FALSE)
     saveRDS(dt, file = file.path(subDir, str_c(str_c(airport, horizon, method,
       train_ind[1], sep = "_"), ".rds")))
@@ -111,20 +108,31 @@ run_analysis <- function(airport, horizon, method, indices, config) {
 
 ### Analysis -------------------------------------------------------------------
 
-dir <- file.path("results", "precipitation",  format(Sys.time(), "%Y%m%d%H%M%S"))
-dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-
 configs <- list(
-  list(name = "dcp",
+  list(name = "dcp_full",
     runs = 1:5,
-    indices = generate_indices_dcp),
-  list(name = "ziegel",
+    indices = generate_indices_dcp,
+    termlabels = names(precipitation)[-c((1:4), 6)]),
+  list(name = "dcp_hres",
+    runs = 1:5,
+    indices = generate_indices_dcp,
+    termlabels = c("hres")),
+  list(name = "ziegel_full",
     runs = 1,
-    indices = generate_indices_ziegel)
+    indices = generate_indices_ziegel,
+    termlabels = names(precipitation)[-c((1:4), 6)]),
+  list(name = "ziegel_hres",
+    runs = 1,
+    indices = generate_indices_ziegel,
+    termlabels = c("hres"))
+
 )
 methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
 
 numCores <- detectCores() - 1
+
+dir <- file.path("results", "precipitation",  format(Sys.time(), "%Y%m%d%H%M%S"))
+dir.create(dir, recursive = TRUE, showWarnings = FALSE)
 
 for (config in configs) {
   message(config$name)
@@ -137,8 +145,8 @@ for (config in configs) {
     mutate(indices = map2(n, run, config$indices), .keep = "unused") |> 
     ## Perform calculations.
     mutate(compute = mcmapply(run_analysis, airport, horizon, method, indices,
-      MoreArgs = list(config = config$name), SIMPLIFY = FALSE,
-      mc.cores = numCores)) |> 
+      mc.cores = numCores,
+      MoreArgs = list(config = config), SIMPLIFY = FALSE)) |> 
     unnest_wider(compute) |>
     as.data.table()
 
