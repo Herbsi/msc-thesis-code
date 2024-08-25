@@ -4,8 +4,8 @@ library(showtext)
 ### Configurations -------------------------------------------------------------
 
 # NOTE <2024-05-22 Wed> Hardcoded pointsize and `\the\textwidth' from LaTeX document here.
-pointsize <- 11
-textwidth <- 418.2555
+pointsize <- 10.5
+textwidth <- 418.25555555
 
 family <- "Valkyrie A"
 familyTab <- "Valkyrie A Tab"
@@ -25,14 +25,23 @@ theme_dcp <- function() {
   list(
     theme_minimal(),
     theme(
-      text = element_text(
+      axis.title = element_text(
         size = pointsize,
-        ## Use tabular figures by default
+        family = familyTab), # Use tabular figures by default
+      axis.text = element_text(
+        size = pointsize - 0.5,
+        family = familyTab),
+      legend.title = element_text(
+        size = pointsize,
         family = familyTab),
       legend.text = element_text(
+        size = pointsize,
         ## Use small caps by default in legend because most of the time,
         ## the legends are the methods.
         family = familyCaps),
+      strip.text = element_text(
+        size = pointsize,
+        family = familyTab),
       strip.placement = "outside")
   )
 }
@@ -71,6 +80,7 @@ savePlot <- function(filename, ...) {
     device = "pdf",
     path = plotDir,
     width = textwidth / 72.27,
+    limitsize = FALSE,
     units = "in",
     create.dir = TRUE,
     ...)
