@@ -13,6 +13,7 @@ alpha_sig <- 0.1
 ### Load data ------------------------------------------------------------------
 
 precipitation <- readRDS("data/precipitation_data.rds")
+precipitation[, mptb := rowMeans(.SD), .SDcols = paste0("p", 1:50)]
 
 
 ### Functions ------------------------------------------------------------------
@@ -21,7 +22,7 @@ generate_indices_dcp <- function(n, run) {
   ## Generates a list with keys `train_ind', `valid_ind' and `test_ind'.
   ## such that they cover 60% of the total data
   ## and correspond to `run' (∈ {1, …, 5}).
-  
+
   train_valid_test <- function(n) {
     ## Equal train–validation split
     ## Use ≈ 16% for testing
@@ -31,7 +32,7 @@ generate_indices_dcp <- function(n, run) {
       valid_ind = (floor(0.42 * n) + 1):(floor(0.84 * n)),
       test_ind = (floor(0.84 * n) + 1):n)
   }
-  
+
   train_valid_test(floor(0.6 * n)) |>
     lapply(\(indices) floor((run - 1) * n / 10) + indices)
 }
@@ -46,87 +47,66 @@ generate_indices_ziegel <- function(n, run) {
 }
 
 
-run_analysis <- function(airport, horizon, method, indices, config) {
+run_analysis <- function(airport, horizon, method, indices, variant) {
   summarise_analysis <- function(dt) {
-    glm_full <- reformulate(termlabels = config$termlabels,
+    glm <- reformulate(termlabels = termlabels,
       response = "conditional_coverage")
-    fm_full <- glm(glm_full, data = dt, family = binomial(link = "logit"))
-    pred_full <- predict(fm_full, newdata = dt, type = "response")
-    cc_mse_full <- sqrt(mean((pred_full - (1 - alpha_sig))^2)) 
-
-    fm_hres <- glm(conditional_coverage ~ hres, data = dt, family = binomial(link = "logit"))
-    pred_hres <- predict(fm_hres, newdata = dt, type = "response")
-    cc_mse_hres <- sqrt(mean((pred_hres - (1 - alpha_sig))^2)) 
+    fm <- glm(glm, data = dt, family = binomial(link = "logit"))
+    pred <- predict(fm, newdata = dt, type = "response")
+    ccmse <- sqrt(mean((pred - (1 - alpha_sig))^2))
 
     list(## Estimate the unconditional coverage as the overall mean.
       coverage = mean(dt$conditional_coverage, na.rm = TRUE),
       ## Similarly for the length.
       leng = mean(dt$conditional_leng, na.rm = TRUE),
-      conditional_coverage_mse_full = cc_mse_full,
-      conditional_coverage_mse_hres = cc_mse_hres,
-      conditional_coverage = dt[, .(date, hres,
-        conditional_coverage_full = pred_full, conditional_coverage_hres = pred_hres)],
-      conditional_leng = dt[, .(date, hres, conditional_leng)]
+      ccmse = ccmse,
+      conditional = dt[, .(date, coverage = pred, leng = conditional_leng)]
     )
   }
-  form <- reformulate(termlabels = config$termlabels, response = "obs")
+
+  termlabels <- switch(variant,
+    "cw" = c("hres", "ctr", "mptb"),
+    "icx" = c("hres", paste0("p", 1:50))
+  )
+
+  form <- reformulate(termlabels = termlabels, response = "obs")
 
   ## Adapted from https://github.com/AlexanderHenzi/isodistrreg
   ## Variable selection: use HRES and the perturbed forecasts P1, ..., P50
   ## Partial orders on variable groups: Usual order of numbers on HRES (group '1'),
   ## increasing convex order on the remaining variables (group '2').
-  groups <- setNames(c(1, rep(2, length(config$termlabels) - 1)), config$termlabels)
-  orders <- if(length(config$termlabels) > 1) {
+  groups <- setNames(switch(variant,
+    "cw" = rep(1, 3),
+    "icx" = c(1, rep(2, 50))
+  ),
+  termlabels)
+  orders <- switch(variant,
+    "cw" = c("comp" = 1),
     c("comp" = 1, "icx" = 2)
-  } else {
-    c("comp" = 1)
-  }
-  
+  )
+
   dt <- precipitation[airport == ap & horizon == hz,
     env = list(ap = I(airport), hz = I(horizon))]
 
   with(indices, {
     message(str_c(airport, horizon, method, train_ind[1], sep = " "))
     start <- Sys.time()
-    dt <- summarise_analysis(dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind],
+    dt <- dcp(method, form, dt[train_ind], dt[valid_ind], dt[test_ind],
       alpha_sig = alpha_sig,
       method = "fn", # QR(*) arguments
       groups = groups, orders = orders # IDR(*) arguments
-    ))
+    )
     elapsed <- difftime(Sys.time(), start, units = "secs")
     message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
-    
-    subDir <- file.path(dir, config$name)
-    dir.create(subDir, recursive = TRUE, showWarnings = FALSE)
-    saveRDS(dt, file = file.path(subDir, str_c(str_c(airport, horizon, method,
-      train_ind[1], sep = "_"), ".rds")))
-    
-    dt
+    summarise_analysis(dt)
   })
 }
 
 
 ### Analysis -------------------------------------------------------------------
 
-configs <- list(
-  list(name = "dcp_full",
-    runs = 1:5,
-    indices = generate_indices_dcp,
-    termlabels = names(precipitation)[-c((1:4), 6)]),
-  list(name = "dcp_hres",
-    runs = 1:5,
-    indices = generate_indices_dcp,
-    termlabels = c("hres")),
-  list(name = "ziegel_full",
-    runs = 1,
-    indices = generate_indices_ziegel,
-    termlabels = names(precipitation)[-c((1:4), 6)]),
-  list(name = "ziegel_hres",
-    runs = 1,
-    indices = generate_indices_ziegel,
-    termlabels = c("hres"))
-
-)
+configs <- expand_grid(approach = c("dcp", "ziegel"), variant = c("cw", "icx")) |>
+  purrr::transpose()
 methods <- c("CP_LOC", "CP_OLS", "DR", "IDR", "IDR*", "QR", "QR*")
 
 numCores <- detectCores() - 1
@@ -135,34 +115,40 @@ dir <- file.path("results", "precipitation",  format(Sys.time(), "%Y%m%d%H%M%S")
 dir.create(dir, recursive = TRUE, showWarnings = FALSE)
 
 for (config in configs) {
-  message(config$name)
-  
+  message(str_c(config$approach, config$variant, sep = " "))
+
+  runs <- switch(config$approach, "dcp" = 1:5, "ziegel" = 1)
+  indexFn <- switch(config$approach,
+    "dcp" = generate_indices_dcp,
+    "ziegel" = generate_indices_ziegel)
+
   start <- Sys.time()
-  
+
   ## Create evaluation grid
   result <- precipitation[, .(n = .N), keyby = .(airport, horizon)] |>
-    expand_grid(method = methods, run = config$runs) |>
-    mutate(indices = map2(n, run, config$indices), .keep = "unused") |> 
+    expand_grid(method = methods, run = runs) |>
+    mutate(indices = map2(n, run, indexFn), .keep = "unused") |>
     ## Perform calculations.
-    mutate(compute = mcmapply(run_analysis, airport, horizon, method, indices,
-      mc.cores = numCores,
-      MoreArgs = list(config = config), SIMPLIFY = FALSE)) |> 
+    mutate(compute =
+             mcmapply(
+               run_analysis, airport, horizon, method, indices, config$variant,
+               mc.cores = numCores,
+               SIMPLIFY = FALSE)) |>
     unnest_wider(compute) |>
     as.data.table()
 
   elapsed <- difftime(Sys.time(), start, units = "secs")
   message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
-  
+
   result[, indices := NULL]
 
   result <- result[,
     ## Mean over first three statistics
-    c(lapply(.SD[, c("coverage", "leng", "conditional_coverage_mse_full", "conditional_coverage_mse_hres")], mean),
-      ## Summarise conditional coverage/length by stitching it them together
-      .(conditional_coverage = .(rbindlist(.SD$conditional_coverage))),
-      .(conditional_leng = .(rbindlist(.SD$conditional_leng)))),
+    c(lapply(.SD[, c("coverage", "leng", "ccmse")], mean),
+      ## Summarise conditional coverage/length by stitching them together
+      .(conditional = .(rbindlist(.SD$conditional)))),
     by = .(airport, horizon, method),
     ]
 
-  saveRDS(result, file = file.path(dir, str_c("result", config$name, ".rds")))
+  saveRDS(result, file = file.path(dir, str_c(str_c("results", config$approach, config$variant, sep = "_"), ".rds")))
 }
