@@ -41,7 +41,7 @@ results <- rbindlist(list(results_dcp_cw, results_dcp_icx, results_ziegel_cw, re
 
 
 ### Unconditional plot ---------------------------------------------------------
-results |>
+dt <- results |>
   ## Preparation
   rename(Coverage = coverage, Length = leng) |>
   pivot_longer(cols = c(Coverage, Length),
@@ -52,10 +52,13 @@ results |>
     approach = renameForPlot(approach),
     variant = renameForPlot(variant)
   ) |>
-  ## Plotting
-  ggplot() +
+  mutate(method = factor(method, levels = methodLevels))
+
+## Plot
+ggplot(dt) +
   geom_point(aes(x = horizon, y = value, color = method, group = method, shape = variant)) +
   facet_nested(metric ~ airport + approach, scales = "free_y") +
+  scale_colour_brewer(palette = "Set1", limits = methodLevels, breaks = unique(dt$method)) +
   labs(
     x = "Horizon",
     y = "",
@@ -91,36 +94,42 @@ savePlot("rainUncond.pdf")
 
 
 ### CCMSE Graph ----------------------------------------------------------------
-results |>
+dt <- results |>
   ## Preparation
   filter(approach == "ziegel") |>
   mutate(
     airport = renameForPlot(airport),
-    method = renameForPlot(method)
+    method = factor(renameForPlot(method), methodLevels)
   ) |>
-  ## Plotting
-  ggplot() +
+  mutate(method = factor(method, levels = methodLevels))
+
+  ## Plot
+ggplot(dt) +
   geom_point(aes(
     x = method,
     y = ccmse,
     shape = variant,
+    colour = method,
   )) +
   facet_grid(rows = vars(airport), cols = vars(horizon), scales = "fixed") +
+  scale_colour_brewer(palette = "Set1", limits = methodLevels, breaks = unique(dt$method)) +
   labs(
     x = "Horizon",
     y = "ccmse",
-    shape = "",
+    colour = "Method",
+    shape = "Variant",
     ) +
   theme_dcp() +
   theme(
-    axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1, family = familyCaps),
+    axis.text.x = element_text(size = 9, # NOTE 2024-08-27 Custom pointsize
+      angle = -45, hjust = 0, vjust = 1, family = familyCaps),
     axis.title.y = element_text(family = familyCaps))
 ## Save plot
 savePlot("rainCCMSE.pdf")
 
 
 ### Coverage and Length vs Date plot -------------------------------------------
-results |>
+dt <- results |>
   ## Preparation
   ## Only use Zurich with horizon 2
   filter(approach == "ziegel" & horizon == 2 & airport == "zrh") |>
@@ -143,12 +152,15 @@ results |>
     date = as_date(str_c(year, month, "01", sep = "-")),
     method = renameForPlot(method)
   ) |>
-  ## Plot
-  ggplot() +
+  mutate(method = factor(method, levels = methodLevels))
+
+## Plot
+ggplot(dt) +
   geom_line(
     aes(x = date, y = value, color = method, linetype = variant)
   ) +
   facet_grid(rows = c("metric"), scales = "free_y") +
+  scale_colour_brewer(palette = "Set1", limits = methodLevels, breaks = unique(dt$method)) +
   labs(
     x = "Date",
     y = "",

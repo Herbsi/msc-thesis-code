@@ -11,12 +11,14 @@ source("table-lib.R")
 
 geom_unconditional <- function(y) {
   list(
-    geom_line(aes(x = n, y = {{ y }}, color = method, group = method)),
+    geom_line(aes(x = n, y = {{ y }}, colour = method, group = method, linetype = method)),
     labs(
       x = "𝑛", # NOTE 2024-08-23 This is U+1D45B
-      colour = "Method"
+      colour = "Method",
+      linetype = "Method",
     ),
     scale_x_continuous(transform = "log2"),
+    scale_y_log10(),
     theme_dcp(),
     theme(axis.title.x = element_text(family = familyMath))
   )
@@ -24,15 +26,16 @@ geom_unconditional <- function(y) {
 
 
 geom_conditional <- function(y, scales = "fixed") {
-  list(geom_line(aes(x = X, y = {{ y }}, color = method)),
-      facet_grid(model ~ n, scales = scales),
-      labs(
-        x = "𝑋", # NOTE 2024-08-23 This is U+1D44B
-        color = "Method",
-        fill = "Method"
-      ),
-      theme_dcp(),
-      theme(axis.title.x = element_text(family = familyMath, face = "italic"))
+  list(
+    geom_line(aes(x = X, y = {{ y }}, colour = method, linetype = method)),
+    facet_grid(model ~ n, scales = scales),
+    labs(
+      x = "𝑋", # NOTE 2024-08-23 This is U+1D44B
+      colour = "Method",
+      linetype = "Method",
+    ),
+    theme_dcp(),
+    theme(axis.title.x = element_text(family = familyMath, face = "italic"))
   )
 }
 
@@ -59,23 +62,29 @@ mutate_ccmse <- function(dt, targetColumn = "ccmse", alpha_sig = 0.1, ...) {
 #### Unconditional
 
 plot_unconditional <- function(dt) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
+    mutate(method = factor(method, levels = methodLevels)) |>
     pivot_longer(cols = c(coverage, leng), names_to = "metric", values_to = "value") |>
-    mutate(metric = if_else(metric == "coverage", "Coverage", "Length")) |>
-    ggplot() +
+    mutate(metric = if_else(metric == "coverage", "Coverage", "Length"))
+
+  ggplot(dt) +
     facet_grid(metric ~ model, scales = "free_y") +
     geom_unconditional(y = value) +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "") +
     theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1))
 }
 
 plot_unconditional_coverage <- function(dt) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    ggplot() +
+    mutate(method = factor(method, levels = methodLevels))
+
+  ggplot(dt) +
     facet_grid(model ~ .) +
     geom_unconditional(y = coverage) +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "Coverage") +
     theme(strip.text.y = element_text(family = familyCaps))
   ## TODO 2024-08-08 scale_y_log10() does not work for some reason.
@@ -83,11 +92,14 @@ plot_unconditional_coverage <- function(dt) {
 
 
 plot_unconditional_leng <- function(dt) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    ggplot(aes(y = leng)) +
+    mutate(method = factor(method, levels = methodLevels))
+
+  ggplot(dt, aes(y = leng)) +
     facet_grid(model ~ ., scales = "free_y") +
     geom_unconditional(y = leng) +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "Length") +
     scale_y_log10() +
     theme(strip.text.y = element_text(family = familyCaps))
@@ -97,8 +109,9 @@ plot_unconditional_leng <- function(dt) {
 #### Conditional 
 
 plot_conditional_coverage <- function(dt) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
+    mutate(method = factor(method, levels = methodLevels)) |>
     mutate(conditional_coverage =
              ## I am bad at naming.  What happens here is that, the column
              ## `conditional_coverage' of `dt' is mutated to another column
@@ -111,9 +124,11 @@ plot_conditional_coverage <- function(dt) {
                  conditional_coverage = predict(tibble, X))
              })) |>
     ## To plot this evaluated GLM, we unnest the tibble.
-    unnest(conditional_coverage) |>
-    ggplot() +
+    unnest(conditional_coverage)
+
+  ggplot(dt) +
     geom_conditional(y = conditional_coverage) +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "Conditional coverage") +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
@@ -123,17 +138,20 @@ plot_conditional_coverage <- function(dt) {
 
 
 plot_conditional_leng <- function(dt) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
+    mutate(method = factor(method, levels = methodLevels)) |>
     unnest(conditional_leng, names_sep = ".") |>
     rename(conditional_leng = conditional_leng.leng) |>
     mutate(X = map_dbl(conditional_leng.bin, \(bin) {
       unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
         as.numeric() |>
         mean()
-    })) |>
-    ggplot() +
+    }))
+
+  ggplot(dt) +
     geom_conditional(y = conditional_leng, scales = "free_y") +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "Length") +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
@@ -145,11 +163,14 @@ plot_conditional_leng <- function(dt) {
 #### Conditional things, aggregated over X
 
 plot_ccmse <- function(dt, columnName = ccmse) {
-  dt |>
+  dt <- dt |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    ggplot() +
+    mutate(method = factor(method, levels = methodLevels))
+
+  ggplot(dt) +
     facet_grid(model ~ .) +
     geom_unconditional(y = {{ columnName }}) +
+    scale_dcp(breaks = unique(dt$method)) +
     scale_y_log10() +
     theme(
       axis.title.y = element_text(family = familyCaps),
@@ -159,7 +180,7 @@ plot_ccmse <- function(dt, columnName = ccmse) {
 
 
 plot_conditional_leng_diff <- function(dt) {
-  dt |>
+  dt <- dt |>
     filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
     group_by(model, n, method = substring(method, first=0, last=1)) |>
     mutate(method = if_else(method == "I", "IDR", "QR")) |>
@@ -182,11 +203,14 @@ plot_conditional_leng_diff <- function(dt) {
         mean()
     })) |>
     mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    ggplot() +
+    mutate(method = factor(method, levels = methodLevels))
+
+  ggplot(dt) +
     geom_conditional(
       y = conditional_leng,
       scales = "free_y"
     ) +
+    scale_dcp(breaks = unique(dt$method)) +
     labs(y = "Relative difference (Regular - Optimal) / Regular") +
     theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1))
 }

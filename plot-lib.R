@@ -21,6 +21,16 @@ showtext_auto()
 
 ### Functions ------------------------------------------------------------------
 
+methodLevels <- c("cp-loc", "cp-ols", "glmdr", "idr", "qr", "idr★", "qr★")
+
+scale_dcp <- function(breaks = methodLevels, limits = methodLevels) {
+  list(
+    scale_colour_brewer(palette = "Set1", breaks = breaks, limits = limits),
+    scale_shape_discrete(breaks = breaks, limits = limits),
+    scale_linetype_discrete(breaks = breaks, limits = limits)
+    )
+}
+
 theme_dcp <- function() {
   list(
     theme_minimal(),
