@@ -152,7 +152,7 @@ plot_conditional_leng <- function(dt) {
   ggplot(dt) +
     geom_conditional(y = conditional_leng, scales = "free_y") +
     scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Length") +
+    labs(y = "Conditional length") +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
       strip.text.y = element_text(family = familyCaps),
@@ -211,7 +211,7 @@ plot_conditional_leng_diff <- function(dt) {
       scales = "free_y"
     ) +
     scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Relative difference (Regular - Optimal) / Regular") +
+    labs(y = "Relative improvement") +
     theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1))
 }
 
@@ -227,12 +227,6 @@ model_values <- c("AR(NI)", "NI", "AR(P)", "S")
 
 
 #### Theorem 2 - Unconditional coverage 
-
-plot_unconditional_coverage(results3)
-savePlot("unconditionalCoverage.pdf")
-
-plot_unconditional_leng(results3)
-savePlot("unconditionalLeng.pdf")
 
 plot_unconditional(results3)
 savePlot("unconditional.pdf")
@@ -292,4 +286,4 @@ results4 |>
 results4 |>
   filter(n %in% n_values) |>
   plot_conditional_leng_diff()
-savePlot("conditionalLengthDiff.pdf")
+savePlot("conditionalLengthDiff.pdf", aspect = 3 / 2)
