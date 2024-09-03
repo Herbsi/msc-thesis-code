@@ -39,7 +39,8 @@ theme_dcp <- function() {
         size = pointsize,
         family = familyTab), # Use tabular figures by default
       axis.text = element_text(
-        size = pointsize - 0.5,
+        size = 8,
+        colour = "black",
         family = familyTab),
       legend.title = element_text(
         size = pointsize,
