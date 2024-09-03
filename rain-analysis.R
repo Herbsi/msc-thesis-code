@@ -25,21 +25,6 @@ results_ziegel_icx[, `:=`(approach = "ziegel", variant = "icx")]
 results <- rbindlist(list(results_dcp_cw, results_dcp_icx, results_ziegel_cw, results_ziegel_icx))
 
 
-### Unconditional table --------------------------------------------------------
-
-## FIXME 2024-08-25 Adapt table to new results format.
-## results |>
-##   select(airport, horizon, method, approach, coverage, leng) |>
-##   mutate(
-##     coverage = round(100 * coverage, 1),
-##     leng = round(leng, 3)
-##   ) |>
-##   dcast(method + horizon ~ airport + approach, value.var = c("coverage", "leng")) |>
-##   arrange(method, horizon) |>
-##   mutate(method = renameForCSV(method)) |>
-##   writeTable("rainUncond.csv")
-
-
 ### Unconditional plot ---------------------------------------------------------
 dt <- results |>
   ## Preparation
@@ -72,30 +57,6 @@ ggplot(dt) +
 
 ## Save plot
 savePlot("rainUncond.pdf")
-
-
-### CCMSE Table ----------------------------------------------------------------
-## FIXME 2024-08-25 Adapt table to new results format.
-## results |>
-##   select(
-##     airport,
-##     horizon,
-##     method,
-##     approach,
-##     conditional_coverage_mse_full,
-##     conditional_coverage_mse_hres
-##   ) |>
-##   mutate(
-##     conditional_coverage_mse_full = round(conditional_coverage_mse_full, 3),
-##     conditional_coverage_mse_hres = round(conditional_coverage_mse_hres, 3)
-##   ) |>
-##   dcast(
-##     method + horizon ~ airport + approach,
-##     value.var = c("conditional_coverage_mse_full", "conditional_coverage_mse_hres")
-##   ) |>
-##   arrange(method, horizon) |>
-##   mutate(method = renameForCSV(method)) |>
-##   writeTable("rainCCMSE.csv")
 
 
 ### CCMSE Graph ----------------------------------------------------------------
