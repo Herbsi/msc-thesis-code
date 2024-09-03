@@ -4,7 +4,7 @@ library(showtext)
 ### Configurations -------------------------------------------------------------
 
 # NOTE <2024-05-22 Wed> Hardcoded pointsize and `\the\textwidth' from LaTeX document here.
-pointsize <- 10.5
+pointsize <- 10.5 # HACK 2024-09-03 This is slightly smaller than in LaTeX, but looks closer.
 textwidth <- 418.25555555
 
 family <- "Valkyrie A"
