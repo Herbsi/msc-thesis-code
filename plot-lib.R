@@ -21,7 +21,7 @@ showtext_auto()
 
 ### Functions ------------------------------------------------------------------
 
-methodLevels <- c("cp-loc", "cp-ols", "glmdr", "idr", "qr", "idr★", "qr★")
+methodLevels <- c("cp-loc", "cp-ols", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-idr★", "dcp-qr★")
 
 scale_dcp <- function(breaks = methodLevels, limits = methodLevels) {
   list(
@@ -63,16 +63,13 @@ renameForPlot <- Vectorize(function(string) {
     ## NOTE 2024-08-23 This hardcodes \idx{cp-loc}, \abb{glmdr}, etc.
     "CP_LOC" = "cp-loc",
     "CP_OLS" = "cp-ols",
-    "DR" = "glmdr",
-    "IDR" = "idr",
-    "IDR*" = "idr★",
-    "QR" = "qr",
-    "QR*" = "qr★",
-    "conditional_coverage_mse_full" = "full",
-    "conditional_coverage_mse_hres" = "hres",
-    ## TODO 2024-08-20 Change approach names.
-    "dcp" = "DCP",
-    "ziegel" = "Ziegel",
+    "DR" = "dcp-glmdr",
+    "IDR" = "dcp-idr",
+    "IDR*" = "dcp-idr★",
+    "QR" = "dcp-qr",
+    "QR*" = "dcp-qr★",
+    "dcp" = "A5",
+    "ziegel" = "A1",
     "bru" = "Brussels",
     "fra" = "Frankfurt",
     "lhr" = "London",
