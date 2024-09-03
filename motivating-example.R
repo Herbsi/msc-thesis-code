@@ -8,9 +8,11 @@ source("plot-lib.R")
 
 ### Simulation -----------------------------------------------------------------
 
+set.seed(42)
+
 filename <- file.path("results", "motivating-example.RDS")
 
-xTest <- 7.5
+xTest <- 5
 cols <- c("qCC", "qhatL", "qhatU", "dcpCC", "dcpL", "dcpU")
 
 if(file.exists(filename)) {
@@ -56,18 +58,23 @@ if(file.exists(filename)) {
 
 ### Plotting -------------------------------------------------------------------
 
-message("Plotting results.")
 result <- result[, lapply(.SD, mean), by = type, .SDcols = cols]
+q05 <- qgamma(0.05, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
+q95 <- qgamma(0.95, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
+
+message("Plotting results.")
 resultForPlot <- result[type == "conditional", ] |>
-  mutate(
-    qL = qgamma(0.05, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6)),
-    qU = qgamma(0.95, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
-  ) |>
   pivot_longer(
-    cols = c(qL, qhatL, dcpL, qU, qhatU, dcpU),
+    cols = c(qhatL, dcpL, qhatU, dcpU),
     names_to = c("method", "quantile"),
-    names_pattern = "(q|qhat|dcp)([LU])",
-    values_to = "value")
+    names_pattern = "(qhat|dcp)([LU])",
+    values_to = "value") |>
+  mutate(method = case_match(method,
+    "qhat" ~ "idr",
+    "dcp" ~ "dcp-idr" # NOTE 2024-09-01 Hard-coded \dcp{\abb{idr}} = dcp-idr here.
+  ) |>
+    factor(levels = c("truth", "idr", "dcp-idr"))
+  )
 
 dataForPDF <- tibble(
   X = xTest,
@@ -75,12 +82,17 @@ dataForPDF <- tibble(
   f = dgamma(Y, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))
 )
 
-## TODO 2024-09-01 Make this plot prettier.
 ggplot(dataForPDF, aes(x = Y, y = f)) +
   geom_line() +
-  geom_vline(data = resultForPlot, mapping = aes(xintercept = value, linetype = method)) +
+  geom_vline(data = resultForPlot, mapping = aes(xintercept = value,
+    linetype = method)) +
+  scale_linetype(limits = levels(resultForPlot$method), breaks = unique(resultForPlot$method)) +
+  geom_vline(mapping = aes(xintercept = q05)) +
+  geom_vline(mapping = aes(xintercept = q95)) +
   labs(
-    x = str_c("𝑌"), # NOTE 2024-09-01 This is U+01D44C
-    y = "Density") +
-  theme_dcp()
+    x = str_c("𝑌 | 𝑋 = ", xTest), # NOTE 2024-09-01 U+01D44C and U+01D44B
+    y = "Density",
+    linetype = "") +
+  theme_dcp() +
+  theme(axis.title.x = element_text(family = familyMath))
 savePlot("motivatingExample.pdf")
