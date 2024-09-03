@@ -103,26 +103,22 @@ dt <- results |>
   ) |>
   mutate(method = factor(method, levels = methodLevels))
 
-  ## Plot
+## Plot
 ggplot(dt) +
   geom_point(aes(
     x = method,
     y = ccmse,
     shape = variant,
-    colour = method,
   )) +
   facet_grid(rows = vars(airport), cols = vars(horizon), scales = "fixed") +
-  scale_colour_brewer(palette = "Set1", limits = methodLevels, breaks = unique(dt$method)) +
   labs(
-    x = "Horizon",
+    x = "Method",
     y = "ccmse",
-    colour = "Method",
     shape = "Variant",
     ) +
   theme_dcp() +
   theme(
-    axis.text.x = element_text(size = 9, # NOTE 2024-08-27 Custom pointsize
-      angle = -45, hjust = 0, vjust = 1, family = familyCaps),
+    axis.text.x = element_text(size = 7, angle = -45, hjust = 0, vjust = 1, family = familyCaps),
     axis.title.y = element_text(family = familyCaps))
 ## Save plot
 savePlot("rainCCMSE.pdf")
