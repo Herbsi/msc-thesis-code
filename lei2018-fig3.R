@@ -62,14 +62,19 @@ data_tibble |>
     values_to = "value"
   ) |>
   mutate(
-    plot = if_else(plot == "coverage", "Coverage", "Length"),
+    plot = if_else(plot == "coverage", "Conditional coverage", "Conditional length"),
     variant = if_else(variant == "LOC", "Locally adaptive", variant),
     variant = factor(variant, levels = c("Usual", "Locally adaptive"))
   ) |>
   ggplot() +
   facet_grid(rows = vars(plot), scales = "free_y") +
   geom_line(aes(x = X, y = value, colour = variant)) +
-  labs(colour = "", y = "") +
+  labs(
+    x = "𝑋", # NOTE 2024-09-03 U+01D44B
+    y = "",
+    colour = ""
+  ) +
+  scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
   theme_dcp() +
   theme(
     legend.text = element_text(family = family),
@@ -92,7 +97,7 @@ data_tibble |>
     variant = factor(variant, levels = c("Usual", "Locally adaptive"))
   ) |>
   ggplot() +
-  facet_wrap(vars(variant)) +
+  facet_grid(cols = vars(variant)) +
   geom_ribbon(
     aes(x = X,
       ymin = Ypred - thresh / 2,
@@ -102,16 +107,24 @@ data_tibble |>
     alpha = 0.3
   ) +
   geom_point(
-    aes(x = X, y = Y)
+    aes(x = X, y = Y),
+    size = 0.5
   ) +
   geom_line(
     aes(x = X, y = Ypred, colour = variant)
   ) +
-  labs(colour = "", fill = "") +
+  labs(
+    x = "𝑋", # NOTE 2024-09-03 U+01D44B
+    y = "𝑌", # NOTE 2024-09-03 U+01D44C
+    colour = "",
+    fill = ""
+  ) +
+  scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
   theme_dcp() +
   theme(
     legend.text = element_text(family = family),
-    axis.title.x = element_text(family = familyMath),
-    axis.text = element_text(family = familyMath)
+    axis.title = element_text(family = familyMath),
+    axis.text = element_text(family = familyMath),
+    strip.text = element_blank(),
   )
 savePlot("Lei2018Fig3-Upper.pdf")
