@@ -73,7 +73,7 @@ resultForPlot <- result[type == "conditional", ] |>
     "qhat" ~ "idr",
     "dcp" ~ "dcp-idr" # NOTE 2024-09-01 Hard-coded \dcp{\abb{idr}} = dcp-idr here.
   ) |>
-    factor(levels = c("truth", "idr", "dcp-idr"))
+    factor(levels = c("idr", "dcp-idr"))
   )
 
 dataForPDF <- tibble(
@@ -84,15 +84,16 @@ dataForPDF <- tibble(
 
 ggplot(dataForPDF, aes(x = Y, y = f)) +
   geom_line() +
-  geom_vline(data = resultForPlot, mapping = aes(xintercept = value,
-    linetype = method)) +
-  scale_linetype(limits = levels(resultForPlot$method), breaks = unique(resultForPlot$method)) +
+  geom_vline(
+    data = resultForPlot,
+    mapping = aes(xintercept = value, colour = method)) +
+  scale_dcp(breaks = unique(resultForPlot$method), limits = levels(resultForPlot$method)) +
   geom_vline(mapping = aes(xintercept = q05)) +
   geom_vline(mapping = aes(xintercept = q95)) +
   labs(
     x = str_c("𝑌 | 𝑋 = ", xTest), # NOTE 2024-09-01 U+01D44C and U+01D44B
     y = "Density",
-    linetype = "") +
+    colour = "") +
   theme_dcp() +
   theme(axis.title.x = element_text(family = familyMath))
 savePlot("motivatingExample.pdf")
