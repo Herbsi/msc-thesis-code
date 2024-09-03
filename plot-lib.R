@@ -81,13 +81,14 @@ renameForPlot <- Vectorize(function(string) {
 })
 
 
-savePlot <- function(filename, ...) {
+savePlot <- function(filename, aspect = 2 / 3, ...) {
   plotDir <- file.path("..", "tex", "images", "vectors")
   ggsave(
     filename,
     device = "pdf",
     path = plotDir,
     width = textwidth / 72.27,
+    height = aspect * textwidth / 72.27,
     limitsize = FALSE,
     units = "in",
     create.dir = TRUE,
