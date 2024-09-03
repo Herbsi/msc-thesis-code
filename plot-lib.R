@@ -8,12 +8,10 @@ pointsize <- 10.5 # HACK 2024-09-03 This is slightly smaller than in LaTeX, but 
 textwidth <- 418.25555555
 
 family <- "Valkyrie A"
-familyTab <- "Valkyrie A Tab"
-familyCaps <- "Valkyrie A Tab Caps"
+familyCaps <- "Valkyrie A Caps"
 familyMath <- "Asana Math"
 font_add(family = family, regular = "Valkyrie A Regular.otf")
-font_add(family = familyTab, regular = "Valkyrie A Tab Regular.otf")
-font_add(family = familyCaps, regular = "Valkyrie A Tab Caps Regular.otf")
+font_add(family = familyCaps, regular = "Valkyrie A Caps Regular.otf")
 font_add(family = familyMath, regular = "Asana Math.otf")
 
 showtext_auto()
@@ -36,22 +34,28 @@ theme_dcp <- function() {
     theme(
       axis.title = element_text(
         size = pointsize,
-        family = familyTab), # Use tabular figures by default
+        family = family
+      ),
+      axis.title.x = element_text(family = familyMath),
       axis.text = element_text(
         size = 8,
         colour = "black",
-        family = familyTab),
+        family = familyMath
+      ),
       legend.title = element_text(
         size = pointsize,
-        family = familyTab),
+        family = family
+      ),
       legend.text = element_text(
         size = pointsize,
         ## Use small caps by default in legend because most of the time,
         ## the legends are the methods.
-        family = familyCaps),
+        family = familyCaps
+      ),
       strip.text = element_text(
         size = pointsize,
-        family = familyTab),
+        family = family
+      ),
       strip.placement = "outside")
   )
 }

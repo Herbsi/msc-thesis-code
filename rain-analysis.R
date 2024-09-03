@@ -64,7 +64,12 @@ ggplot(dt) +
     y = "",
     shape = "Variant",
     color = "Method",) +
-  theme_dcp()
+  theme_dcp() +
+  theme(
+    axis.title.x = element_text(family = family),
+    axis.text.x = element_text(family = family)
+  )
+
 ## Save plot
 savePlot("rainUncond.pdf")
 
@@ -119,6 +124,7 @@ ggplot(dt) +
   theme_dcp() +
   theme(
     axis.text.x = element_text(size = 7, angle = -45, hjust = 0, vjust = 1, family = familyCaps),
+    axis.title.x = element_text(family = family),
     axis.title.y = element_text(family = familyCaps))
 ## Save plot
 savePlot("rainCCMSE.pdf")
@@ -163,6 +169,10 @@ ggplot(dt) +
     color = "Method",
     linetype = "Variant",
   ) +
-  theme_dcp()
+  theme_dcp() +
+  theme(
+    axis.title.x = element_text(family = family),
+    axis.text.x = element_text(family = family),
+    )
 ## Save plot
 savePlot("rainDateZRH2.pdf")

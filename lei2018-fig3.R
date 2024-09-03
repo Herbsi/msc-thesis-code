@@ -76,11 +76,7 @@ data_tibble |>
   ) +
   scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
   theme_dcp() +
-  theme(
-    legend.text = element_text(family = family),
-    axis.title.x = element_text(family = familyMath),
-    axis.text = element_text(family = familyMath)
-  )
+  theme(legend.text = element_text(family = family))
 savePlot("Lei2018Fig3-Lower.pdf")
 
 
@@ -123,8 +119,7 @@ data_tibble |>
   theme_dcp() +
   theme(
     legend.text = element_text(family = family),
-    axis.title = element_text(family = familyMath),
-    axis.text = element_text(family = familyMath),
+    axis.title.y = element_text(family = familyMath),
     strip.text = element_blank(),
   )
 savePlot("Lei2018Fig3-Upper.pdf")

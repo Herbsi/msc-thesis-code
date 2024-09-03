@@ -94,6 +94,5 @@ ggplot(dataForPDF, aes(x = Y, y = f)) +
     x = str_c("𝑌 | 𝑋 = ", xTest), # NOTE 2024-09-01 U+01D44C and U+01D44B
     y = "Density",
     colour = "") +
-  theme_dcp() +
-  theme(axis.title.x = element_text(family = familyMath))
+  theme_dcp()
 savePlot("motivatingExample.pdf")

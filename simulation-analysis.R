@@ -18,8 +18,7 @@ geom_unconditional <- function(y) {
     ),
     scale_x_continuous(transform = "log2"),
     scale_y_log10(),
-    theme_dcp(),
-    theme(axis.title.x = element_text(family = familyMath))
+    theme_dcp()
   )
 }
 
@@ -33,7 +32,7 @@ geom_conditional <- function(y, scales = "fixed") {
       colour = "Method",
     ),
     theme_dcp(),
-    theme(axis.title.x = element_text(family = familyMath, face = "italic"))
+    theme(strip.text.x = element_text(family = familyMath))
   )
 }
 
@@ -153,8 +152,8 @@ plot_conditional_leng <- function(dt) {
     labs(y = "Conditional length") +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
-      strip.text.y = element_text(family = familyCaps),
-      )
+      strip.text.y = element_text(family = familyCaps)
+    )
 }
 
 
