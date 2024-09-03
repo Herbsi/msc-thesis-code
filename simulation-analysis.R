@@ -11,11 +11,10 @@ source("table-lib.R")
 
 geom_unconditional <- function(y) {
   list(
-    geom_line(aes(x = n, y = {{ y }}, colour = method, group = method, linetype = method)),
+    geom_line(aes(x = n, y = {{ y }}, colour = method, group = method)),
     labs(
       x = "𝑛", # NOTE 2024-08-23 This is U+1D45B
       colour = "Method",
-      linetype = "Method",
     ),
     scale_x_continuous(transform = "log2"),
     scale_y_log10(),
@@ -27,12 +26,11 @@ geom_unconditional <- function(y) {
 
 geom_conditional <- function(y, scales = "fixed") {
   list(
-    geom_line(aes(x = X, y = {{ y }}, colour = method, linetype = method)),
+    geom_line(aes(x = X, y = {{ y }}, colour = method)),
     facet_grid(model ~ n, scales = scales),
     labs(
       x = "𝑋", # NOTE 2024-08-23 This is U+1D44B
       colour = "Method",
-      linetype = "Method",
     ),
     theme_dcp(),
     theme(axis.title.x = element_text(family = familyMath, face = "italic"))

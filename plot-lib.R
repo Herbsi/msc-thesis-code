@@ -21,14 +21,13 @@ showtext_auto()
 
 ### Functions ------------------------------------------------------------------
 
-methodLevels <- c("cp-loc", "cp-ols", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-idr★", "dcp-qr★")
+methodLevels <- c("cp-ols", "cp-loc", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-idr★", "dcp-qr★")
 
 scale_dcp <- function(breaks = methodLevels, limits = methodLevels) {
   list(
     scale_colour_brewer(palette = "Set1", breaks = breaks, limits = limits),
-    scale_shape_discrete(breaks = breaks, limits = limits),
-    scale_linetype_discrete(breaks = breaks, limits = limits)
-    )
+    suppressWarnings(scale_shape_discrete(breaks = breaks, limits = limits))
+  )
 }
 
 theme_dcp <- function() {
