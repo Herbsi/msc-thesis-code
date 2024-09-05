@@ -58,41 +58,96 @@ if(file.exists(filename)) {
 
 ### Plotting -------------------------------------------------------------------
 
-result <- result[, lapply(.SD, mean), by = type, .SDcols = cols]
-q05 <- qgamma(0.05, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
+05 <- qgamma(0.05, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
 q95 <- qgamma(0.95, shape = sqrt(xTest), scale = pmin(pmax(xTest, 1), 6))
 
 message("Plotting results.")
+
 resultForPlot <- result[type == "conditional", ] |>
   pivot_longer(
     cols = c(qhatL, dcpL, qhatU, dcpU),
     names_to = c("method", "quantile"),
     names_pattern = "(qhat|dcp)([LU])",
-    values_to = "value") |>
-  mutate(method = case_match(method,
-    "qhat" ~ "idr",
-    "dcp" ~ "dcp-idr" # NOTE 2024-09-01 Hard-coded \dcp{\abb{idr}} = dcp-idr here.
+    values_to = "value"
   ) |>
+  mutate(
+    plot = factor("#", levels = c("Density", "#")),
+    method = case_match(method,
+      "qhat" ~ "idr",
+      "dcp" ~ "dcp-idr" # NOTE 2024-09-01 Hard-coded \dcp{\abb{idr}} = dcp-idr here.
+    ) |>
     factor(levels = c("idr", "dcp-idr"))
   )
 
 dataForPDF <- tibble(
+  plot = factor("Density", levels = c("Density", "#")),
   X = xTest,
-  Y = seq(0, 45, length.out = 1000),
+  Y = seq(0, 40, length.out = 1000),
   f = dgamma(Y, shape = sqrt(X), scale = pmin(pmax(X, 1), 6))
 )
 
-ggplot(dataForPDF, aes(x = Y, y = f)) +
-  geom_line() +
+
+dataForPlot <- bind_rows(dataForPDF, resultForPlot)
+
+ggplot(dataForPlot) +
+  facet_grid(rows = vars(plot), scales = "free_y") +
+  geom_line(
+    mapping = aes(x = Y, y = f),
+  ) +
+  geom_histogram(
+    mapping = aes(value, fill = method),
+    filter(dataForPlot, quantile == "L"),
+    binwidth = 0.3,
+    alpha = 0.3,
+  ) +
+  geom_histogram(
+    mapping = aes(value, fill = method),
+    dataForPlot |> filter(quantile == "U") |> mutate(value = pmin(40, value)),
+    binwidth = 0.3,
+    alpha = 0.3,
+  ) +
+  ## FIXME 2024-05-09 This code is rather redundant, but I haven’t bothered to find a better way yet.
   geom_vline(
-    data = resultForPlot,
-    mapping = aes(xintercept = value, colour = method)) +
-  scale_dcp(breaks = unique(resultForPlot$method), limits = levels(resultForPlot$method)) +
-  geom_vline(mapping = aes(xintercept = q05)) +
-  geom_vline(mapping = aes(xintercept = q95)) +
+    aes(xintercept = q05),
+    dataForPlot |> filter(plot == "#")
+  ) +
+  geom_vline(
+    aes(xintercept = q95),
+    dataForPlot |> filter(plot == "#")
+  ) +
+  geom_vline(aes(
+    xintercept = result[, mean(qhatL, na.rm = TRUE)],
+    colour = factor("idr", levels = c("idr", "dcp-idr"))
+  ),
+  dataForPlot |> filter(plot == "#")
+  ) +
+  geom_vline(aes(
+    xintercept = result[, mean(qhatU, na.rm = TRUE)],
+    colour = factor("idr", levels = c("idr", "dcp-idr"))
+  ),
+  dataForPlot |> filter(plot == "#")
+  ) +
+  geom_vline(aes(
+    xintercept = result[, mean(dcpL, na.rm = TRUE)],
+    colour = factor("dcp-idr", levels = c("idr", "dcp-idr"))
+  ),
+  dataForPlot |> filter(plot == "#")
+  ) +
+  geom_vline(aes(
+    xintercept = result[, mean(dcpU, na.rm = TRUE)],
+    colour = factor("dcp-idr", levels = c("idr", "dcp-idr"))
+  ),
+  dataForPlot |> filter(plot == "#")
+  ) +
+  scale_dcp(
+    breaks = unique(resultForPlot$method),
+    limits = levels(resultForPlot$method)
+  ) +
   labs(
     x = str_c("𝑌 | 𝑋 = ", xTest), # NOTE 2024-09-01 U+01D44C and U+01D44B
-    y = "Density",
-    colour = "") +
+    y = "",
+    colour = "",
+    fill = ""
+  ) +
   theme_dcp()
 savePlot("motivatingExample.pdf")
