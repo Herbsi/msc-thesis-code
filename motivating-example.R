@@ -60,6 +60,7 @@ if(file.exists(filename)) {
 ### Plotting -------------------------------------------------------------------
 
 ## Unconditional coverage
+## Coverage
 result[, lapply(.SD, mean), by = type, .SDcols = c("qhatCC", "dcpCC")]
 
 message("Plotting results.")
