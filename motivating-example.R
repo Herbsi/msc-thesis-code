@@ -59,10 +59,17 @@ if(file.exists(filename)) {
 
 ### Plotting -------------------------------------------------------------------
 
+<<<<<<< HEAD
 ## Unconditional coverage
 ## Coverage
 result[, lapply(.SD, mean), by = type, .SDcols = c("qhatCC", "dcpCC")]
 
+||||||| parent of 319fd39 (Reproduce figure 1 of DCP paper)
+=======
+## Unconditional coverage
+result[, lapply(.SD, mean), by = type, .SDcols = c("qCC", "dcpCC")]
+
+>>>>>>> 319fd39 (Reproduce figure 1 of DCP paper)
 message("Plotting results.")
 
 resultForPlot <- result |>
