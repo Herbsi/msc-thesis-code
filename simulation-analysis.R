@@ -11,7 +11,10 @@ source("table-lib.R")
 
 geom_unconditional <- function(y) {
   list(
-    geom_line(aes(x = n, y = {{ y }}, colour = method, group = method)),
+    geom_line(
+      aes(x = n, y = {{ y }}, colour = method, group = method),
+      linewidth = 0.5
+    ),
     labs(
       x = "𝑛", # NOTE 2024-08-23 This is U+1D45B
       colour = "Method",
@@ -25,7 +28,10 @@ geom_unconditional <- function(y) {
 
 geom_conditional <- function(y, scales = "fixed") {
   list(
-    geom_line(aes(x = X, y = {{ y }}, colour = method)),
+    geom_line(
+      aes(x = X, y = {{ y }}, colour = method),
+      linewidth = 0.5
+    ),
     facet_grid(model ~ n, scales = scales),
     labs(
       x = "𝑋", # NOTE 2024-08-23 This is U+1D44B
@@ -70,7 +76,10 @@ plot_unconditional <- function(dt) {
     geom_unconditional(y = value) +
     scale_dcp(breaks = unique(dt$method)) +
     labs(y = "") +
-    theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1))
+    theme(
+      axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
+      strip.text.x = element_text(family = familyCaps)
+    )
 }
 
 plot_unconditional_coverage <- function(dt) {
@@ -265,19 +274,6 @@ results4 |>
     ccmse = round(ccmse, 4)) |>
   rename(Model = "model", Method = "method", Coverage = "coverage", "\\textsc{ccmse}" = ccmse) |>
   writeTable("results4CoverageShort.csv")
-
-## Full version for Appendix
-results4 |>
-  mutate_ccmse() |>
-  select(n, model, method, coverage, ccmse) |>
-  arrange(n, model, method) |>
-  mutate(
-    model = renameForCSV(model),
-    method = renameForCSV(method),
-    coverage = round(coverage, 4),
-    ccmse = round(ccmse, 4)) |>
-  rename(Model = "model", Method = "method", Coverage = "coverage", "\\textsc{ccmse}" = ccmse) |>
-  writeTable("results4CoverageFull.csv")
 
 ## Plot Length difference
 results4 |>

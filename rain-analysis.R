@@ -120,7 +120,8 @@ dt <- results |>
 ## Plot
 ggplot(dt) +
   geom_line(
-    aes(x = date, y = value, color = method, linetype = variant)
+    aes(x = date, y = value, color = method, linetype = variant),
+    linewidth = 0.5
   ) +
   facet_grid(rows = c("metric"), scales = "free_y") +
   scale_colour_brewer(palette = "Set1", limits = methodLevels, breaks = unique(dt$method)) +

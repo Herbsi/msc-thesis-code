@@ -50,37 +50,9 @@ data_tibble <- data_tibble |>
 
 ### Plotting -------------------------------------------------------------------
 
-#### Conditional coverage and length
-
 ## TODO: Add average coverage and length
 
-data_tibble |>
-  pivot_longer(
-    cols = c("coverageUsual", "coverageLOC", "threshUsual", "threshLOC"),
-    names_to = c("plot", "variant"),
-    names_pattern = "(coverage|thresh)(Usual|LOC)",
-    values_to = "value"
-  ) |>
-  mutate(
-    plot = if_else(plot == "coverage", "Conditional coverage", "Conditional length"),
-    variant = if_else(variant == "LOC", "Locally adaptive", variant),
-    variant = factor(variant, levels = c("Usual", "Locally adaptive"))
-  ) |>
-  ggplot() +
-  facet_grid(rows = vars(plot), scales = "free_y") +
-  geom_line(aes(x = X, y = value, colour = variant)) +
-  labs(
-    x = "𝑋", # NOTE 2024-09-03 U+01D44B
-    y = "",
-    colour = ""
-  ) +
-  scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
-  theme_dcp() +
-  theme(legend.text = element_text(family = family))
-savePlot("Lei2018Fig3-Lower.pdf")
-
-
-#### Predictions and ribbon
+## Predictions and ribbon
 
 data_tibble |>
   pivot_longer(
@@ -123,3 +95,31 @@ data_tibble |>
     strip.text = element_blank(),
   )
 savePlot("Lei2018Fig3-Upper.pdf")
+
+
+## Coverage and length
+
+data_tibble |>
+  pivot_longer(
+    cols = c("coverageUsual", "coverageLOC", "threshUsual", "threshLOC"),
+    names_to = c("plot", "variant"),
+    names_pattern = "(coverage|thresh)(Usual|LOC)",
+    values_to = "value"
+  ) |>
+  mutate(
+    plot = if_else(plot == "coverage", "Conditional coverage", "Conditional length"),
+    variant = if_else(variant == "LOC", "Locally adaptive", variant),
+    variant = factor(variant, levels = c("Usual", "Locally adaptive"))
+  ) |>
+  ggplot() +
+  facet_grid(rows = vars(plot), scales = "free_y") +
+  geom_line(aes(x = X, y = value, colour = variant), linewidth = 0.5) +
+  labs(
+    x = "𝑋", # NOTE 2024-09-03 U+01D44B
+    y = "",
+    colour = ""
+  ) +
+  scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
+  theme_dcp() +
+  theme(legend.text = element_text(family = family))
+savePlot("Lei2018Fig3-Lower.pdf")
