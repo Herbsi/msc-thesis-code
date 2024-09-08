@@ -49,19 +49,23 @@ generate_indices_ziegel <- function(n, run) {
 
 run_analysis <- function(airport, horizon, method, indices, variant) {
   summarise_analysis <- function(dt) {
-    glm <- reformulate(termlabels = termlabels,
-      response = "conditional_coverage")
-    fm <- glm(glm, data = dt, family = binomial(link = "logit"))
-    pred <- predict(fm, newdata = dt, type = "response")
-    ccmse <- sqrt(mean((pred - (1 - alpha_sig))^2))
+    dt[, {
+      ## Estimate the unconditional coverage and length as the overall mean.
+      coverage <- mean(conditional_coverage, na.rm = TRUE)
+      leng <- mean(conditional_leng, na.rm = TRUE)
 
-    list(## Estimate the unconditional coverage as the overall mean.
-      coverage = mean(dt$conditional_coverage, na.rm = TRUE),
-      ## Similarly for the length.
-      leng = mean(dt$conditional_leng, na.rm = TRUE),
-      ccmse = ccmse,
-      conditional = dt[, .(date, coverage = pred, leng = conditional_leng)]
-    )
+      ## For conditional coverage, also train a GLM on the covariates and add its
+      ## predictions to the summary
+      glm <- reformulate(termlabels = termlabels, response = "conditional_coverage")
+      fm <- glm(glm, data = .SD, family = binomial(link = "logit"))
+      pred <- predict(fm, newdata = .SD, type = "response")
+
+      list(
+        coverage = coverage,
+        leng = leng,
+        conditional = .(.SD[, .(date, coverage = conditional_coverage, pred = pred, leng = conditional_leng)])
+      )
+    }]
   }
 
   termlabels <- switch(variant,
@@ -134,7 +138,7 @@ for (config in configs) {
                run_analysis, airport, horizon, method, indices, config$variant,
                mc.cores = numCores,
                SIMPLIFY = FALSE)) |>
-    unnest_wider(compute) |>
+    unnest(compute) |>
     as.data.table()
 
   elapsed <- difftime(Sys.time(), start, units = "secs")
