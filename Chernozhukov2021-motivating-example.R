@@ -11,7 +11,7 @@ source("plot-lib.R")
 
 set.seed(42)
 
-filename <- file.path("results", "motivating-example.RDS")
+filename <- file.path("results", "motivating-example.rds")
 
 xTest <- 5
 cols <- c("qhatCC", "qhatL", "qhatU", "dcpCC", "dcpL", "dcpU")
