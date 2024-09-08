@@ -1,3 +1,7 @@
+#!/usr/bin/env Rscript
+
+### Packages -------------------------------------------------------------------
+
 library(dplyr, warn.conflicts = FALSE)
 library(purrr)
 library(scales, warn.conflicts = FALSE)
@@ -6,6 +10,14 @@ library(tidyr)
 
 source("plot-lib.R")
 source("table-lib.R")
+
+
+### Load data ------------------------------------------------------------------
+
+alpha_sig <- 0.1
+n_values <- c(128, 1024, 16384)
+model_values <- c("AR(NI)", "NI", "AR(P)", "S")
+
 
 ### Geoms ----------------------------------------------------------------------
 
@@ -53,112 +65,53 @@ predict.tbl_df <- function(object, newdata) {
 }
 
 
-mutate_ccmse <- function(dt, targetColumn = "ccmse", alpha_sig = 0.1, ...) {
-  dt |>
-    mutate({{ targetColumn }} := map_dbl(conditional_coverage,
-      \(tibble) {
-        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1001)) - (1 - alpha_sig))^2))
-      }), ...)
-}
+### Plotting functions --------------------------------------------------------- 
 
+#### Unconditional – functions of `n'
 
-#### Unconditional
-
-plot_unconditional <- function(dt) {
+plot_unconditional <- function(dt, metrics) {
   dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels)) |>
-    pivot_longer(cols = c(coverage, leng), names_to = "metric", values_to = "value") |>
-    mutate(metric = if_else(metric == "coverage", "Coverage", "Length"))
+    pivot_longer(
+      cols = all_of(metrics),
+      names_to = "metric",
+      values_to = "value"
+    ) |>
+    mutate(metric = case_match(metric,
+      "coverage" ~ "Coverage",
+      "leng" ~ "Length",
+      .default = metric))
 
   ggplot(dt) +
-    facet_grid(metric ~ model, scales = "free_y") +
+    facet_grid(rows = vars(metric), cols = vars(model), scales = "free_y") +
     geom_unconditional(y = value) +
     scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "") +
+    theme_dcp() +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
-      strip.text.x = element_text(family = familyCaps)
-    )
-}
-
-plot_unconditional_coverage <- function(dt) {
-  dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels))
-
-  ggplot(dt) +
-    facet_grid(model ~ .) +
-    geom_unconditional(y = coverage) +
-    scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Coverage") +
-    theme(strip.text.y = element_text(family = familyCaps))
-  ## TODO 2024-08-08 scale_y_log10() does not work for some reason.
-}
-
-
-plot_unconditional_leng <- function(dt) {
-  dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels))
-
-  ggplot(dt, aes(y = leng)) +
-    facet_grid(model ~ ., scales = "free_y") +
-    geom_unconditional(y = leng) +
-    scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Length") +
-    scale_y_log10() +
-    theme(strip.text.y = element_text(family = familyCaps))
-}
-
-
-#### Conditional 
-
-plot_conditional_coverage <- function(dt) {
-  dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels)) |>
-    mutate(conditional_coverage =
-             ## I am bad at naming.  What happens here is that, the column
-             ## `conditional_coverage' of `dt' is mutated to another column
-             ## with the same name, but where each entry is now a tibble with
-             ## two columns: `X' and `conditional_coverage'.
-             ## `X' is a fine grid in [0, 10]; `conditional_coverage' is the
-             ## GLM inside `dt$conditional_coverage' evaluated along that grid.
-             map(conditional_coverage, \(tibble) {
-               tibble(X = seq(0, 10, length.out = 1000),
-                 conditional_coverage = predict(tibble, X))
-             })) |>
-    ## To plot this evaluated GLM, we unnest the tibble.
-    unnest(conditional_coverage)
-
-  ggplot(dt) +
-    geom_conditional(y = conditional_coverage) +
-    scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Conditional coverage") +
-    theme(
-      axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
-      strip.text.y = element_text(family = familyCaps)
+      strip.text.x = element_text(family = familyCaps),
+      strip.text.y = if (length(metrics) == 1) element_blank() else element_text()
     )
 }
 
 
-plot_conditional_leng <- function(dt) {
+#### Conditional – functions of `X'
+
+plot_conditional <- function(dt, metric) {
   dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels)) |>
-    unnest(conditional_leng, names_sep = ".") |>
-    rename(conditional_leng = conditional_leng.leng) |>
-    mutate(X = map_dbl(conditional_leng.bin, \(bin) {
+    unnest(conditional, names_sep = "_") |>
+    mutate(X = map_dbl(conditional_cut, \(bin) {
       unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
         as.numeric() |>
         mean()
     }))
 
   ggplot(dt) +
-    geom_conditional(y = conditional_leng, scales = "free_y") +
+    geom_conditional(
+      y = !!sym(paste0("conditional_", metric)),
+      scales = "free_y"
+    ) +
     scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Conditional length") +
+    theme_dcp() +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
       strip.text.y = element_text(family = familyCaps)
@@ -166,117 +119,143 @@ plot_conditional_leng <- function(dt) {
 }
 
 
-#### Conditional things, aggregated over X
-
-plot_ccmse <- function(dt, columnName = ccmse) {
+plot_conditional_coverage_glm <- function(dt) {
   dt <- dt |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels))
+    mutate(conditional_coverage_glm =
+             ## What happens here is that, the column
+             ## `conditional_coverage_glm' of `dt' is mutated to another
+             ## column with the same name, but where each entry is now a
+             ## tibble with two columns: `X' and `conditional_coverage_pred'.
+             ## `X' is a fine grid in [0, 10]; `conditional_coverage_pred' is
+             ## the GLM inside `dt$conditional_coverage_glm' evaluated along
+             ## that grid.
+             map(conditional_coverage_glm, \(tibble) {
+               tibble(X = seq(0, 10, length.out = 1000),
+                 conditional_coverage_pred = predict(tibble, X))
+             })) |>
+    ## To plot this evaluated GLM, we unnest the tibble.
+    unnest(conditional_coverage_glm)
 
   ggplot(dt) +
-    facet_grid(model ~ .) +
-    geom_unconditional(y = {{ columnName }}) +
+    geom_conditional(y = conditional_coverage_pred) +
     scale_dcp(breaks = unique(dt$method)) +
-    scale_y_log10() +
+    labs(y = "Conditional coverage smoothed") +
+    theme_dcp() +
     theme(
-      axis.title.y = element_text(family = familyCaps),
+      axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
       strip.text.y = element_text(family = familyCaps)
     )
 }
 
 
-plot_conditional_leng_diff <- function(dt) {
-  dt <- dt |>
-    filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
-    group_by(model, n, method = substring(method, first=0, last=1)) |>
-    mutate(method = if_else(method == "I", "IDR", "QR")) |>
-    summarise(conditional_leng = {
-      ## conditional_leng is a list of two dfs.
-      ## Because dt is ordered by method, the first df comes from IDR (resp. QR)
-      ## and the second df comes from IDR* (resp. QR*)
-      ## We bind these two together, duplicating each `bin' value.
-      ## Then, per bin, we calculate -(leng(IDR*) - leng(IDR)) / leng(IDR) (resp. -(leng(QR*) - leng(QR)) / leng(QR))
-      ## via the call to `diff'.
-      bind_rows(conditional_leng) |>
-        group_by(bin) |>
-        summarise(conditional_leng = -diff(leng) / leng[1]) |>
-        list()
-    } , .groups = "drop") |>
-    unnest(conditional_leng) |>
-    mutate(X = map_dbl(bin, \(bin) {
-      unlist(strsplit(gsub("[^0-9e.,-]", "", bin), ",")) |>
-        as.numeric() |>
-        mean()
-    })) |>
-    mutate(model = renameForPlot(model), method = renameForPlot(method)) |>
-    mutate(method = factor(method, levels = methodLevels))
-
-  ggplot(dt) +
-    geom_conditional(
-      y = conditional_leng,
-      scales = "free_y"
-    ) +
-    scale_dcp(breaks = unique(dt$method)) +
-    labs(y = "Relative improvement") +
-    theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1))
-}
-
-
 ### Analysis -------------------------------------------------------------------
 
-## TODO Turn these into command-line arguments
-results3 <- readRDS("results/theorem-3-euler/20240809081639/result211829.rds")
-results4 <- readRDS("results/theorem-4-euler/20240809085734/result_stitched20240812124821.rds")
+## Add quantities numbers for conditional coverage
 
-n_values <- c(128, 1024, 16384)
-model_values <- c("AR(NI)", "NI", "AR(P)", "S")
+results3 <- results3 |>
+  mutate(
+    fsc = map_dbl(conditional, \(dt) min(dt$coverage)),
+    ccmse = map_dbl(conditional_coverage_glm,
+      \(tibble) {
+        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1001)) - (1 - alpha_sig))^2))
+      })
+  ) |>
+  prepare_for_plot(c("model", "method"))
 
 
 #### Theorem 2 - Unconditional coverage 
 
-plot_unconditional(results3)
-savePlot("unconditional.pdf")
+results3 |>
+  plot_unconditional(c("coverage", "leng")) +
+  labs(y = "")
+save_plot("unconditional.pdf", sub_dir = "simulations")
 
 
 #### Theorem 3 – Conditional coverage
 
 results3 |>
-  filter(n %in% n_values & model %in% model_values) |>
-  plot_conditional_coverage()
-savePlot("conditionalCoverage.pdf")
+  filter(model %in% model_values) |>
+  plot_unconditional("fsc") +
+  labs(y = "fsc") +
+  theme(axis.title.y = element_text(family = familyCaps))
+save_plot("fsc.pdf", sub_dir = "simulations")
 
 results3 |>
-  mutate_ccmse() |>
   filter(model %in% model_values) |>
-  plot_ccmse()
-savePlot("CCMSE.pdf")
+  plot_unconditional("ccmse") +
+  labs(y = "ccmse") +
+  theme(axis.title.y = element_text(family = familyCaps))
+save_plot("ccmse.pdf", sub_dir = "simulations")
+
+results3 |>
+  filter(n %in% n_values & model %in% model_values) |>
+  plot_conditional("coverage") +
+  labs(y = "Conditional coverage")
+save_plot("conditional_coverage.pdf", sub_dir = "simulations")
 
 results3 |>
   filter(n%in% n_values & model %in% model_values) |>
-  plot_conditional_leng()
-savePlot("conditionalLeng.pdf")
+  plot_conditional("leng") +
+  labs(y = "Conditional length")
+save_plot("conditional_length.pdf", sub_dir = "simulations")
+
+results3 |>
+  filter(n %in% n_values & model %in% model_values) |>
+  plot_conditional_coverage_glm()
+save_plot("conditional_coverage_glm.pdf", sub_dir = "simulations")
 
 
-### Theorem 4 – Conditional coverage + Length improvement. ---------------------
+#### Theorem 4 – Conditional coverage + Length improvement.
 
-## Short version for chapter 5
+## Short table for chapter 4
 results4 |>
-  mutate_ccmse() |>
+  mutate(
+    fsc = map_dbl(conditional, \(dt) min(dt$coverage)),
+    ccmse = map_dbl(conditional_coverage_glm,
+      \(tibble) {
+        sqrt(mean((predict(tibble, seq(0, 10, length.out = 1001)) - (1 - alpha_sig))^2))
+      })
+  ) |>
   filter((method %in% c("IDR", "IDR*") & model %in% c("S1(Beta)", "S1(Uniform)"))
     | (method %in% c("QR", "QR*") & model %in% c("S1(Bound above)", "S1(No bounds)"))) |>
   filter(n %in% n_values) |>
-  select(n, model, method, coverage, ccmse) |>
+  select(n, model, method, coverage, fsc, ccmse) |>
   arrange(n, model, method) |>
   mutate(
     model = renameForCSV(model),
     method = renameForCSV(method),
     coverage = round(coverage, 4),
+    fsc = round(fsc, 4),
     ccmse = round(ccmse, 4)) |>
-  rename(Model = "model", Method = "method", Coverage = "coverage", "\\textsc{ccmse}" = ccmse) |>
-  writeTable("results4CoverageShort.csv")
+  rename(
+    Model = "model", 
+    Method = "method", 
+    Coverage = "coverage", 
+    "\\textsc{fsc}" = fsc, 
+    "\\textsc{ccmse}" = ccmse
+  ) |>
+writeTable("results4CoverageShort.csv")
 
 ## Plot Length difference
 results4 |>
+  filter(method %in% c("IDR", "IDR*", "QR", "QR*")) |>
+  group_by(model, n, method = substring(method, first=0, last=1)) |>
+  mutate(method = if_else(method == "I", "IDR", "QR")) |>
+  summarise(conditional = {
+    ## conditional is a list of two dfs.
+    ## Because dt is ordered by method, the first df comes from IDR (resp. QR)
+    ## and the second df comes from IDR* (resp. QR*)
+    ## We bind these two together, duplicating each `bin' value.
+    ## Then, per bin, we calculate -(leng(IDR*) - leng(IDR)) / leng(IDR) (resp. -(leng(QR*) - leng(QR)) / leng(QR))
+    ## via the call to `diff'.
+    bind_rows(conditional) |>
+      group_by(cut) |>
+      summarise(leng = -diff(leng) / leng[1]) |>
+      list()
+  } , .groups = "drop") |>
+  prepare_for_plot(c("model", "method")) |>
   filter(n %in% n_values) |>
-  plot_conditional_leng_diff()
-savePlot("conditionalLengthDiff.pdf", aspect = 3 / 2)
+  plot_conditional("leng") +
+  theme(strip.text.y = element_text(family = family)) +
+  labs(y = "Relative improvement")
+save_plot("length_improvement.pdf", aspect = 3/2, sub_dir = "simulations")
