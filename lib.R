@@ -1,4 +1,5 @@
-## Packages --------------------------------------------------------------------
+### Packages -------------------------------------------------------------------
+
 library(broom)
 library(data.table)
 library(parallel)
@@ -8,7 +9,7 @@ library(tidyr)
 source("dcp.R")
 
 
-## Simulation ------------------------------------------------------------------
+### Simulation ------------------------------------------------------------------
 
 rmodel <- function(n, model, x) {
   ## Generate `n' data points Y | X ~ model(x) conditioned on `x'.
@@ -47,13 +48,13 @@ rmodel <- function(n, model, x) {
 
 
 generate_data <- function(n_train, n_valid, n_test, model) {
-  ## Return a `data.table' with two columns, `X' and `Y'
+  ## Return a `data.table' with two columns, `X' and `Y',
   ## and `n_train' + `n_valid' + `n_test' rows.
-  ## `X' is drawn iid from Unif(0, 10), unless `model' ∈ {AR(1), AR(2)}.
-  ## In that case, X[i] depends on on X[i-1] (and X[i-2])
+  ## `X' is drawn iid from Unif(0, 10), unless `model' =AR(…).
+  ## In that case, X[i] depends on on X[i-1]
   ## for i = 1, ..., n_train + n_valid and all X values for the test set are
-  ## drawn iid depending on X[n_train+n_valid] (and X[n_train+n_valid-1]).
-  ## `Y' is drawn conditional on `X', according to `model'.
+  ## drawn iid depending on X[n_train+n_valid].
+  ## `Y' is drawn conditional on `X' according to `model'.
   n <- n_train + n_valid + n_test
   if (str_starts(model, "AR")) {
       X <- numeric(n)
@@ -77,7 +78,7 @@ generate_data <- function(n_train, n_valid, n_test, model) {
 make_simulation <- function(runs, alpha_sig, dir = NULL) {
   ## Return a function with three arguments: `n`, `model' and `method'.
   ## The returned function performs a simulation where,
-  ## - `n' is the size of the training+validation set (the test set always has size 4096),
+  ## - `n' is the size of the training+validation set (the test set always has size 8192),
   ## - `model' specifies how the data should be generated,
   ## - `method' specifies the DCP method to use (eg, DR, IDR, QR, …)
   ## Optionally, if `results_dir' is not NULL, the simulation results are saved there.
@@ -114,6 +115,8 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
   }
 
 
+  ## Return value --------------------------------------------------------------
+
   function(model, method, n) {
     message("================================================================================")
     message(str_c(model, method, n, sep = " "))
@@ -142,14 +145,13 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
       ## - X = { Xₙ₊₁⁽ʲ⁾ : j = 1 … n_test }.
       ## - conditional_coverage { 1[Yₙ₊₁⁽ʲ⁾ ∈ C(Xₙ₊₁⁽ʲ⁾)] : j = 1, …, n_test }.
       ## - conditional_leng { |C(Xₙ₊₁⁽ʲ⁾)| : j = 1, …, n_test } a list of estimates for C(Xₙ₊₁).
-      dcp(dcp_method = method, formula = Y ~ X, data_train = data_train, data_valid = data_valid, data_test = data_test, alpha_sig = alpha_sig)
+      dcp(method, Y ~ X, data_train, data_valid, data_test, alpha_sig)
     }
 
     ## Sometimes, …, sometimes the code below fails.
     ## I don't know why.
     ## And I could not figure it out.
-    ## So I decided to use the obvious solution:
-    ## I just execute the code multiple times.
+    ## So I decided to use the obvious solution: Executing the code multiple times.
     n_tries <- 10
     for (try in 1:n_tries) {
       message(str_c("Attempt: ", try))
@@ -172,7 +174,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
           saveRDS(dt, file = filename)
         }
 
-        message("================================================================================")
+        message("--------------------------------------------------------------------------------")
         ## Return results.
         return(dt)
       },
@@ -188,9 +190,11 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
 
 run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_dir = NULL) {
   ## Create directory to save results in.
-  dir <- file.path("results",
+  dir <- file.path(
+    "results",
     if(is.null(sub_dir)) "tmp" else sub_dir,
-    format(Sys.time(), "%Y%m%d%H%M%S"))
+    format(Sys.time(), "%Y%m%d%H%M%S")
+  )
   dir.create(dir, recursive = TRUE)
 
   run_simulation <- make_simulation(runs, alpha_sig, dir)
