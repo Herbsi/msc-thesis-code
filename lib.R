@@ -162,6 +162,12 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
         dt <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores, mc.silent = TRUE) |>
           rbindlist()
 
+        if (!is.null(dir)) {
+          ## Save raw results to file
+          filename <- file.path(dir, str_c(str_c(method, model, n, "raw", sep = "_"), ".rds"))
+          saveRDS(dt, file = filename)
+        }
+
         ## Summarise the results of a simulation.
         dt <- summarise_runs(dt)
 
