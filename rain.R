@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 library(data.table)
 library(dplyr)
 library(furrr)
@@ -28,9 +30,11 @@ generate_indices_dcp <- function(n, run) {
     ## Use ≈ 16% for testing
     ## That way, we use 50% of the data for training+validation and 10% for testing,
     ## as `generate_sequential_indices' passes 60% of the total data to this function.
-    list(train_ind = 1:floor(0.42 * n),
+    list(
+      train_ind = 1:floor(0.42 * n),
       valid_ind = (floor(0.42 * n) + 1):(floor(0.84 * n)),
-      test_ind = (floor(0.84 * n) + 1):n)
+      test_ind = (floor(0.84 * n) + 1):n
+    )
   }
 
   train_valid_test(floor(0.6 * n)) |>
@@ -41,9 +45,11 @@ generate_indices_dcp <- function(n, run) {
 generate_indices_ziegel <- function(n, run) {
   ## Generate indices the way Prof. Ziegel suggested, ie,
   ## do not average across multiple sets in time.
-  list(train_ind = 1:floor(0.4*n),
+  list(
+    train_ind = 1:floor(0.4*n),
     valid_ind = (floor(0.4*n)+1):floor(0.8*n),
-    test_ind = (floor(0.8*n)+1):n)
+    test_ind = (floor(0.8*n)+1):n
+  )
 }
 
 
@@ -121,10 +127,14 @@ dir.create(dir, recursive = TRUE, showWarnings = FALSE)
 for (config in configs) {
   message(str_c(config$approach, config$variant, sep = " "))
 
-  runs <- switch(config$approach, "dcp" = 1:5, "ziegel" = 1)
+  runs <- switch(config$approach,
+    "dcp" = 1:5,
+    "ziegel" = 1
+  )
   indexFn <- switch(config$approach,
     "dcp" = generate_indices_dcp,
-    "ziegel" = generate_indices_ziegel)
+    "ziegel" = generate_indices_ziegel
+  )
 
   start <- Sys.time()
 
@@ -142,15 +152,17 @@ for (config in configs) {
     as.data.table()
 
   elapsed <- difftime(Sys.time(), start, units = "secs")
-  message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
+  message(str_c("Overall time:", format(round(elapsed, 3)), sep = " "))
 
   result[, indices := NULL]
 
   result <- result[,
     ## Mean over first three statistics
-    c(lapply(.SD[, c("coverage", "leng", "ccmse")], mean),
+    c(
+      lapply(.SD[, c("coverage", "leng")], mean),
       ## Summarise conditional coverage/length by stitching them together
-      .(conditional = .(rbindlist(.SD$conditional)))),
+      .(conditional = .(rbindlist(.SD$conditional)))
+    ),
     by = .(airport, horizon, method),
     ]
 
