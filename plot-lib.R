@@ -19,9 +19,9 @@ showtext_auto()
 
 ### Functions ------------------------------------------------------------------
 
-methodLevels <- c("cp-ols", "cp-loc", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-idr★", "dcp-qr★")
+method_levels <- c("cp-ols", "cp-loc", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-idr★", "dcp-qr★")
 
-scale_dcp <- function(breaks = methodLevels, limits = methodLevels) {
+scale_dcp <- function(breaks = method_levels, limits = method_levels) {
   list(
     scale_colour_brewer(palette = "Set1", breaks = breaks, limits = limits),
     suppressWarnings(scale_shape_discrete(breaks = breaks, limits = limits))
@@ -61,31 +61,37 @@ theme_dcp <- function() {
 }
 
 
-renameForPlot <- Vectorize(function(string) {
-  rename_list <- list(
-    ## We use a font with small caps at the right points, which is why we use lowercase letters here.
-    ## NOTE 2024-08-23 This hardcodes \idx{cp-loc}, \abb{glmdr}, etc.
-    "CP_LOC" = "cp-loc",
-    "CP_OLS" = "cp-ols",
-    "DR" = "dcp-glmdr",
-    "IDR" = "dcp-idr",
-    "IDR*" = "dcp-idr★",
-    "QR" = "dcp-qr",
-    "QR*" = "dcp-qr★",
-    "dcp" = "A5",
-    "ziegel" = "A1",
-    "bru" = "Brussels",
-    "fra" = "Frankfurt",
-    "lhr" = "London",
-    "zrh" = "Zurich"
-  )
-  new_name <- rename_list[[string]]
-  ifelse(is.null(new_name), string, new_name)
-})
+prepare_for_plot <- function(dt, cols) {
+  rename_for_plot <- Vectorize(function(string) {
+    rename_list <- list(
+      ## We use a font with small caps at the right points, which is why we use lowercase letters here.
+      ## NOTE 2024-08-23 This hardcodes \idx{cp-loc}, \abb{glmdr}, etc.
+      "CP_LOC" = "cp-loc",
+      "CP_OLS" = "cp-ols",
+      "DR" = "dcp-glmdr",
+      "IDR" = "dcp-idr",
+      "IDR*" = "dcp-idr★",
+      "QR" = "dcp-qr",
+      "QR*" = "dcp-qr★",
+      "dcp" = "A5",
+      "ziegel" = "A1",
+      "bru" = "Brussels",
+      "fra" = "Frankfurt",
+      "lhr" = "London",
+      "zrh" = "Zurich"
+    )
+    new_name <- rename_list[[string]]
+    ifelse(is.null(new_name), string, new_name)
+  })
+
+  dt |>
+    mutate(across(all_of(cols), rename_for_plot)) |>
+    mutate(method = factor(method, method_levels))
+}
 
 
-savePlot <- function(filename, aspect = 2 / 3, ...) {
-  plotDir <- file.path("..", "tex", "images", "vectors")
+save_plot <- function(filename, aspect = 2 / 3, sub_dir = ".", ...) {
+  plotDir <- file.path("..", "tex", "images", "vectors", sub_dir)
   ggsave(
     filename,
     device = "pdf",

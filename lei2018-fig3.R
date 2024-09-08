@@ -94,7 +94,7 @@ data_tibble |>
     axis.title.y = element_text(family = familyMath),
     strip.text = element_blank(),
   )
-savePlot("Lei2018Fig3-Upper.pdf")
+save_plot("Lei2018Fig3-Upper.pdf")
 
 
 ## Coverage and length
@@ -122,4 +122,4 @@ data_tibble |>
   scale_dcp(limits = c("Usual", "Locally adaptive"), breaks = c("Usual", "Locally adaptive")) +
   theme_dcp() +
   theme(legend.text = element_text(family = family))
-savePlot("Lei2018Fig3-Lower.pdf")
+save_plot("Lei2018Fig3-Lower.pdf")

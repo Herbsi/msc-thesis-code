@@ -113,4 +113,4 @@ ggplot(resultForPlot) +
     fill = ""
   ) +
   theme_dcp()
-savePlot("motivatingExample.pdf")
+save_plot("motivatingExample.pdf")
