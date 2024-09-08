@@ -92,26 +92,37 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
   }
 
   summarise_runs <- function(dt) {
-    dt[,
-      list(
-        ## Estimate the unconditional coverage as the overall mean.
-        coverage = mean(conditional_coverage, na.rm = TRUE),
-        ## Similarly for the length.
-        leng = mean(conditional_leng, na.rm = TRUE),
-        ## Summarise the conditional coverage as a logistic regression model
-        conditional_coverage = {
-          .(tidy(glm(conditional_coverage ~ X, .SD, family = binomial(link = "logit"))))
-        },
-        ## Summarise the conditional length by binning it according to X
-        conditional_leng = {
-          .(.SD[,
-            .(leng = mean(conditional_leng, na.rm = TRUE)),
-            keyby = list(bin = cut(X,
-              breaks = seq(floor(min(X)), ceiling(max(X)), length.out = 21),
-              include.lowest = TRUE,
-              ordered_result = TRUE))])
-        }),
+    dt[, {
+      ## Estimate the unconditional coverage as the overall mean.
+      coverage <- mean(conditional_coverage, na.rm = TRUE)
+
+      ## Similarly for the length.
+      leng <- mean(conditional_leng, na.rm = TRUE)
+
+      ## Summarise the conditional coverage by fitting a GLM
+      conditional_coverage_glm <- tidy(glm(
+        conditional_coverage ~ X,
+        .SD,
+        family = binomial(link = "logit")
+      ))
+
+      ## Summarise conditional coverage and length by binning.
+      conditional <- .SD[, lapply(.SD, mean, na.rm = TRUE),
+        keyby = cut(X,
+          breaks = seq(floor(min(X)), ceiling(max(X)), length.out = 21),
+          include.lowest = TRUE, ordered_result = TRUE),
+        .SDcols = c("conditional_coverage", "conditional_leng")
       ]
+      setnames(conditional, "conditional_coverage", "coverage")
+      setnames(conditional, "conditional_leng", "leng")
+
+      list(
+        coverage = coverage,
+        leng = leng,
+        conditional = .(conditional),
+        conditional_coverage_glm = .(conditional_coverage_glm)
+      )
+    }]
   }
 
 
@@ -189,7 +200,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
     }
     message(str_c("Error in", model, method, n, sep = " "))
     message(str_c("Failed", n_tries, "times", sep = " "))
-    data.table(coverage = NaN, leng = NaN, conditional_coverage = list(NA),conditional_leng = list(NA))
+    data.table(coverage = NaN, leng = NaN, conditional = list(NA), conditional_coverage_glm = list(NA))
   }
 }
 
@@ -207,7 +218,7 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
   start <- Sys.time()
   dt <- as.data.table(expand_grid(model = model, method = method, n = n))[
     order(n, method, model)][,
-    c("coverage", "leng", "conditional_coverage", "conditional_leng")
+    c("coverage", "leng", "conditional", "conditional_coverage_glm")
     := run_simulation(model, method, n),
     by = .I][]
   elapsed <- difftime(Sys.time(), start, units = "hours")
@@ -236,7 +247,7 @@ stitch_results <- function(dir) {
   }) |>
     rbindlist()
 
-  setcolorder(result, c("model", "method", "n", "coverage", "leng", "conditional_coverage", "conditional_leng"))
+  setcolorder(result, c("model", "method", "n", "coverage", "leng", "conditional",  "conditional_coverage_glm"))
   setorder(result, n, method, model)
   saveRDS(result, file = file.path(str_c("result_stitched", format(Sys.time(), "%Y%m%d%H%M%S"), ".rds")))
   result
