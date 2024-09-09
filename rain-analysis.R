@@ -96,7 +96,42 @@ ggplot(dt) +
 save_plot("ccmse.pdf", sub_dir = "rain")
 
 
+### FSC Graph ------------------------------------------------------------------
+
+dt <- results |>
+  filter(approach == "ziegel") |>
+  select(method, airport, horizon, variant, conditional) |>
+  unnest(conditional) |>
+  group_by(method, airport, horizon, variant, year = year(date), month = month(date)) |>
+  summarise(fsc = mean(coverage)) |>
+  group_by(method, airport, horizon, variant) |>
+  summarise(fsc = min(fsc), .groups = "drop") |>
+  prepare_for_plot(c("airport", "method", "variant"))
+
+ggplot(dt) +
+  geom_point(aes(
+    x = method,
+    y = fsc,
+    shape = variant,
+  )) +
+  facet_grid(rows = vars(airport), cols = vars(horizon)) +
+  labs(
+    x = "Method",
+    y = "fsc",
+    shape = "Variant",
+    ) +
+  geom_hline(aes(yintercept = 0.9)) +
+  scale_y_continuous(limit = c(0.3, 1)) +
+  theme_dcp() +
+  theme(
+    axis.text.x = element_text(size = 7, angle = -45, hjust = 0, vjust = 1, family = familyCaps),
+    axis.title.x = element_text(family = family),
+    axis.title.y = element_text(family = familyCaps)
+  )
+save_plot("fsc.pdf", sub_dir = "rain")
+
 ### Coverage and Length vs Date plot -------------------------------------------
+
 dt <- results |>
   ## Only use Zurich with horizon 2
   filter(approach == "ziegel" & horizon == 2 & airport == "zrh") |>
