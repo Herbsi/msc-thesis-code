@@ -2,11 +2,12 @@
 
 ### Packages -------------------------------------------------------------------
 
-library(dplyr, warn.conflicts = FALSE)
-library(purrr)
+options(dplyr.summarise.inform = FALSE)
+options(tidyverse.quiet = TRUE)
+
+library(ggplot2)
 library(scales, warn.conflicts = FALSE)
-library(tibble)
-library(tidyr)
+library(tidyverse, warn.conflicts = FALSE)
 
 source("plot-lib.R")
 source("table-lib.R")

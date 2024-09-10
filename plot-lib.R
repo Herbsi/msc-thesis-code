@@ -1,6 +1,3 @@
-library(ggplot2)
-library(showtext)
-
 ### Configurations -------------------------------------------------------------
 
 # NOTE <2024-05-22 Wed> Hardcoded pointsize and `\the\textwidth' from LaTeX document here.
@@ -10,11 +7,12 @@ textwidth <- 418.25555555
 family <- "Valkyrie A"
 familyCaps <- "Valkyrie A Caps"
 familyMath <- "Asana Math"
-font_add(family = family, regular = "Valkyrie A Regular.otf")
-font_add(family = familyCaps, regular = "Valkyrie A Caps Regular.otf")
-font_add(family = familyMath, regular = "Asana Math.otf")
 
-showtext_auto()
+sysfonts::font_add(family = family, regular = "Valkyrie A Regular.otf")
+sysfonts::font_add(family = familyCaps, regular = "Valkyrie A Caps Regular.otf")
+sysfonts::font_add(family = familyMath, regular = "Asana Math.otf")
+
+showtext::showtext_auto()
 
 
 ### Functions ------------------------------------------------------------------
@@ -23,15 +21,14 @@ method_levels <- c("cp-ols", "cp-loc", "dcp-glmdr", "dcp-idr", "dcp-qr", "dcp-id
 
 scale_dcp <- function(breaks = method_levels, limits = method_levels) {
   list(
-    scale_colour_brewer(palette = "Set1", breaks = breaks, limits = limits),
-    suppressWarnings(scale_shape_discrete(breaks = breaks, limits = limits))
+    ggplot2::scale_colour_brewer(palette = "Set1", breaks = breaks, limits = limits)
   )
 }
 
 theme_dcp <- function() {
   list(
-    theme_minimal(),
-    theme(
+    ggplot2::theme_minimal(),
+    ggplot2::theme(
       axis.title = element_text(
         size = pointsize,
         family = family
@@ -91,15 +88,16 @@ prepare_for_plot <- function(dt, cols) {
 
 
 save_plot <- function(filename, aspect = 2 / 3, sub_dir = ".", ...) {
-  plotDir <- file.path("..", "tex", "images", "vectors", sub_dir)
-  ggsave(
+  plot_dir <- file.path("..", "tex", "images", "vectors", sub_dir)
+  ggplot2::ggsave(
     filename,
     device = "pdf",
-    path = plotDir,
+    path = plot_dir,
     width = textwidth / 72.27,
     height = aspect * textwidth / 72.27,
     limitsize = FALSE,
     units = "in",
     create.dir = TRUE,
     ...)
+  message(stringr::str_c("Wrote ", plot_dir, "/", filename))
 }

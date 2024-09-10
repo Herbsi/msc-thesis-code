@@ -1,5 +1,3 @@
-library(data.table, warn.conflicts = FALSE)
-
 renameForCSV <- Vectorize(function(string) {
   rename_list <- list(
     "CP_LOC" = "\\cp{loc}",
@@ -19,5 +17,5 @@ renameForCSV <- Vectorize(function(string) {
 writeTable <- function(x, filename, ...) {
   tableDir <- file.path("..", "tex", "tables")
   dir.create(tableDir, showWarnings = FALSE, recursive = TRUE)
-  fwrite(x, file.path(tableDir, filename), scipen = 1000, ...)
+  data.table::fwrite(x, file.path(tableDir, filename), scipen = 1000, ...)
 }

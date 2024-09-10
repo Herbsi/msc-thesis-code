@@ -1,7 +1,11 @@
 #!/usr/bin/env Rscript
 
+options(dplyr.summarise.inform = FALSE)
+options(tidyverse.quiet = TRUE)
+
+library(data.table)
 library(ggplot2)
-library(tidyverse)
+library(tidyverse, warn.conflicts = FALSE)
 
 source("dcp.R")
 source("lib.R")
@@ -13,19 +17,15 @@ set.seed(42)
 
 filename <- file.path("results", "motivating-example.rds")
 
-xTest <- 5
+x_test <- 5
 cols <- c("qhatCC", "qhatL", "qhatU", "dcpCC", "dcpL", "dcpU")
 
 if(file.exists(filename)) {
-  message("Loading existing result.")
-
   result <- readRDS(filename)
 } else {
-  message("Running new simulation.")
-
   runs <- 512
   n <- 1024
-  nTest <- 2048
+  n_test <- 2048
 
   start <- Sys.time()
   result <- mclapply(1:runs, FUN = \(x) {
@@ -33,9 +33,9 @@ if(file.exists(filename)) {
     dtTrain <- data.table(X = runif(n, 0, 10))[, Y := rmodel(n, "S", X)][]
     dtValid <- data.table(X = runif(n, 0, 10))[, Y := rmodel(n, "S", X)][]
     dtTest  <- data.table(
-      X = c(rep(xTest, times = nTest), runif(nTest, 0, 10)),
-      type = c(rep("conditional", times = nTest), rep("unconditional", times = nTest)))[
-      , Y := rmodel(2 * nTest, "S", X)][]
+      X = c(rep(x_test, times = n_test), runif(n_test, 0, 10)),
+      type = c(rep("conditional", times = n_test), rep("unconditional", times = n_test)))[
+      , Y := rmodel(2 * n_test, "S", X)][]
     dtTrain[, `:=`(X = X + runif(n, -1e-6, 1e-6), Y = Y + runif(n, -1e-6, 1e-6))]
 
     fitIDR <- idr(c(dtTrain$Y, dtValid$Y), rbindlist(list(dtTrain, dtValid))[, c("X")])
@@ -61,9 +61,7 @@ if(file.exists(filename)) {
 
 ## Unconditional coverage
 ## Coverage
-result[, lapply(.SD, mean), by = type, .SDcols = c("qhatCC", "dcpCC")]
-
-message("Plotting results.")
+print(result[, lapply(.SD, mean), by = type, .SDcols = c("qhatCC", "dcpCC")])
 
 resultForPlot <- result |>
   pivot_longer(

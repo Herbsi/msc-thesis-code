@@ -1,3 +1,7 @@
+#!/usr/bin/env Rscript
+
+options(tidyverse.quiet = TRUE)
+
 library(tidyverse)
 
 source("plot-lib.R")

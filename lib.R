@@ -1,10 +1,6 @@
 ### Packages -------------------------------------------------------------------
 
-library(broom)
-library(data.table)
-library(parallel)
-library(stringr)
-library(tidyr)
+suppressPackageStartupMessages(library(data.table))
 
 source("dcp.R")
 
@@ -56,7 +52,7 @@ generate_data <- function(n_train, n_valid, n_test, model) {
   ## drawn iid depending on X[n_train+n_valid].
   ## `Y' is drawn conditional on `X' according to `model'.
   n <- n_train + n_valid + n_test
-  if (str_starts(model, "AR")) {
+  if (stringr::str_starts(model, "AR")) {
       X <- numeric(n)
       steps <- runif(n - 1, -1, 1)
       X[1] <- runif(1, 0, 10)
@@ -85,7 +81,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
 
   ## Variables and functions used in a simulation ------------------------------
 
-  num_cores <- detectCores() - 1
+  num_cores <- parallel::detectCores() - 1
 
   noise <- function(n) {
     runif(n, -1e-6, 1e-6)
@@ -100,7 +96,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
       leng <- mean(conditional_leng, na.rm = TRUE)
 
       ## Summarise the conditional coverage by fitting a GLM
-      conditional_coverage_glm <- tidy(glm(
+      conditional_coverage_glm <- broom::tidy(glm(
         conditional_coverage ~ X,
         .SD,
         family = binomial(link = "logit")
@@ -130,7 +126,7 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
 
   function(model, method, n) {
     message("================================================================================")
-    message(str_c(model, method, n, sep = " "))
+    message(stringr::str_c(model, method, n, sep = " "))
 
     ## Setup
     set.seed(42 + n) # Ensure we generate the same data for every `n'
@@ -165,23 +161,23 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
     ## So I decided to use the obvious solution: Executing the code multiple times.
     n_tries <- 10
     for (try in 1:n_tries) {
-      message(str_c("Attempt: ", try))
+      message(stringr::str_c("Attempt: ", try))
       tryCatch({
         start <- Sys.time()
 
         ## Perform the different runs in parallel.
-        dt <- mclapply(1:runs, \(x) single_run(), mc.cores = num_cores, mc.silent = TRUE) |>
+        dt <- parallel::mclapply(1:runs, \(x) single_run(), mc.cores = num_cores, mc.silent = TRUE) |>
           rbindlist()
 
         ## Summarise the results of a simulation.
         dt <- summarise_runs(dt)
 
         elapsed <- difftime(Sys.time(), start, units = "secs")
-        message(str_c("Time:", format(round(elapsed, 3)), sep = " "))
+        message(stringr::str_c("Time:", format(round(elapsed, 3)), sep = " "))
 
         if (!is.null(dir)) {
           ## Save summarised results to file.
-          filename <- file.path(dir, str_c(str_c(method, model, n, sep = "_"), ".rds"))
+          filename <- file.path(dir, stringr::str_c(stringr::str_c(method, model, n, sep = "_"), ".rds"))
           saveRDS(dt, file = filename)
         }
 
@@ -192,8 +188,8 @@ make_simulation <- function(runs, alpha_sig, dir = NULL) {
       error = function(cond) {}
       )
     }
-    message(str_c("Error in", model, method, n, sep = " "))
-    message(str_c("Failed", n_tries, "times", sep = " "))
+    message(stringr::str_c("Error in", model, method, n, sep = " "))
+    message(stringr::str_c("Failed", n_tries, "times", sep = " "))
     data.table(coverage = NaN, leng = NaN, conditional = list(NA), conditional_coverage_glm = list(NA))
   }
 }
@@ -210,15 +206,15 @@ run_experiment <- function(model, method, n, runs = 500, alpha_sig = 0.1, sub_di
 
   run_simulation <- make_simulation(runs, alpha_sig, dir)
   start <- Sys.time()
-  dt <- as.data.table(expand_grid(model = model, method = method, n = n))[
+  dt <- as.data.table(tidyr::expand_grid(model = model, method = method, n = n))[
     order(n, method, model)][,
     c("coverage", "leng", "conditional", "conditional_coverage_glm")
     := run_simulation(model, method, n),
     by = .I][]
   elapsed <- difftime(Sys.time(), start, units = "hours")
-  message(str_c("Overall time:", format(round(elapsed, 3)), sep = " "))
+  message(stringr::str_c("Overall time:", format(round(elapsed, 3)), sep = " "))
 
-  saveRDS(dt, file = file.path(dir, str_c("result", format(Sys.time(), "%H%M%S"), ".rds")))
+  saveRDS(dt, file = file.path(dir, stringr::str_c("result", format(Sys.time(), "%H%M%S"), ".rds")))
 
   dt
 }
@@ -230,7 +226,7 @@ stitch_results <- function(dir) {
   setwd(dir)
 
   result <- lapply(list.files(), \(file) {
-    match <- str_match(file, "((?:CP_LOC)|(?:CP_OLS)|[A-Z*]+)_(.*?)_([0-9]+)\\.rds")
+    match <- stringr::str_match(file, "((?:CP_LOC)|(?:CP_OLS)|[A-Z*]+)_(.*?)_([0-9]+)\\.rds")
     if (!(is.na(match[1]))) {
       method <- match[1, 2]
       model <- match[1, 3]
@@ -243,6 +239,6 @@ stitch_results <- function(dir) {
 
   setcolorder(result, c("model", "method", "n", "coverage", "leng", "conditional",  "conditional_coverage_glm"))
   setorder(result, n, method, model)
-  saveRDS(result, file = file.path(str_c("result_stitched", format(Sys.time(), "%Y%m%d%H%M%S"), ".rds")))
+  saveRDS(result, file = file.path(stringr::str_c("result_stitched", format(Sys.time(), "%Y%m%d%H%M%S"), ".rds")))
   result
 }

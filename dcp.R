@@ -1,7 +1,6 @@
-library(data.table, warn.conflicts=FALSE)
-library(purrr)
-library(isodistrreg)
-library(quantreg)
+library(data.table, warn.conflicts = FALSE)
+suppressPackageStartupMessages(library(isodistrreg))
+suppressPackageStartupMessages(library(quantreg))
 
 dcp <- function(dcp_method, formula, data_train, data_valid, data_test, alpha_sig = 0.1, ...) {
   ## Remaining arguments `...' get passed on to `dcp_fit'.

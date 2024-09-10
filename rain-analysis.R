@@ -1,11 +1,12 @@
 #!/usr/bin/env Rscript
 
-library(dplyr, warn.conflicts = FALSE)
+options(dplyr.summarise.inform = FALSE)
+options(tidyverse.quiet = TRUE)
+
+library(data.table)
+library(ggplot2)
 library(ggh4x)
-library(lubridate, warn.conflicts = FALSE) # as_date
-library(purrr)
-library(stringr) # str_c
-library(tidyr)
+library(tidyverse, warn.conflicts = FALSE)
 
 source("plot-lib.R")
 source("table-lib.R")
@@ -121,7 +122,7 @@ ggplot(dt) +
     shape = "Variant",
     ) +
   geom_hline(aes(yintercept = 0.9)) +
-  scale_y_continuous(limit = c(0.3, 1)) +
+  coord_cartesian(ylim = c(0.3, 1)) +
   theme_dcp() +
   theme(
     axis.text.x = element_text(size = 7, angle = -45, hjust = 0, vjust = 1, family = familyCaps),
@@ -170,6 +171,6 @@ ggplot(dt) +
   theme_dcp() +
   theme(
     axis.title.x = element_text(family = family),
-    axis.text.x = element_text(family = family),
-    )
+    axis.text.x = element_text(family = family)
+  )
 save_plot("conditional_ZRH2.pdf", sub_dir = "rain")
