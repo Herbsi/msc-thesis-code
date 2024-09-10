@@ -201,7 +201,7 @@ save_plot("conditional_coverage.pdf", sub_dir = "simulations")
 results3 |>
   plot_conditional("coverage") +
   labs(y = "Conditional coverage")
-save_plot("conditional_coverage_full.pdf", aspect = 3/2, sub_dir = "simulations")
+save_plot("conditional_coverage_full.pdf", aspect = 4 / 3, sub_dir = "simulations")
 
 results3 |>
   filter(n%in% n_values & model %in% model_values) |>
@@ -210,7 +210,7 @@ results3 |>
 results3 |>
   plot_conditional("leng", scales = "free_y") +
   labs(y = "Conditional length")
-save_plot("conditional_length_full.pdf", aspect = 3 / 2, sub_dir = "simulations")
+save_plot("conditional_length_full.pdf", aspect = 4 / 3, sub_dir = "simulations")
 
 
 #### Theorem 4 – Conditional coverage + Length improvement.
@@ -239,6 +239,7 @@ results4 |>
     Model = "model", 
     Method = "method", 
     Coverage = "coverage", 
+    ## NOTE 2024-10-10 Hard-coded `\abb{fsc}' and `\abb{ccmse}' here.
     "\\textsc{fsc}" = fsc, 
     "\\textsc{ccmse}" = ccmse
   ) |>
@@ -266,4 +267,4 @@ results4 |>
   plot_conditional("leng", scales = "free_y") +
   theme(strip.text.y = element_text(family = family)) +
   labs(y = "Relative improvement")
-save_plot("length_improvement.pdf", aspect = 3/2, sub_dir = "simulations")
+save_plot("length_improvement.pdf", aspect = 4 / 3, sub_dir = "simulations")
