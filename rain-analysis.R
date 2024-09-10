@@ -162,6 +162,7 @@ ggplot(dt) +
   ) +
   facet_grid(rows = c("metric"), scales = "free_y") +
   scale_dcp(breaks = unique(dt$method)) +
+  scale_x_date(breaks = scales::breaks_pretty(10)) +
   labs(
     x = "Date",
     y = "",

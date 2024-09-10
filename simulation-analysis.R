@@ -71,16 +71,21 @@ predict.tbl_df <- function(object, newdata) {
 #### Unconditional – functions of `n'
 
 plot_unconditional <- function(dt, metrics) {
+  ## NOTE 2024-10-10 This is a bit hacky.  I hard-code the order of the metrics here by turning them into a factor.
+  metric_levels <- c("Coverage", "Length", "fsc", "ccmse")
+  
   dt <- dt |>
     pivot_longer(
       cols = all_of(metrics),
       names_to = "metric",
       values_to = "value"
     ) |>
-    mutate(metric = case_match(metric,
-      "coverage" ~ "Coverage",
-      "leng" ~ "Length",
-      .default = metric))
+    mutate(metric = factor(
+      case_match(metric,
+        "coverage" ~ "Coverage",
+        "leng" ~ "Length",
+        .default = metric),
+      levels = metric_levels))
 
   ggplot(dt) +
     facet_grid(rows = vars(metric), cols = vars(model), scales = "free_y") +
@@ -97,7 +102,7 @@ plot_unconditional <- function(dt, metrics) {
 
 #### Conditional – functions of `X'
 
-plot_conditional <- function(dt, metric) {
+plot_conditional <- function(dt, metric, scales = "fixed") {
   dt <- dt |>
     unnest(conditional, names_sep = "_") |>
     mutate(X = map_dbl(conditional_cut, \(bin) {
@@ -109,7 +114,7 @@ plot_conditional <- function(dt, metric) {
   ggplot(dt) +
     geom_conditional(
       y = !!sym(paste0("conditional_", metric)),
-      scales = "free_y"
+      scales = scales
     ) +
     scale_dcp(breaks = unique(dt$method)) +
     theme_dcp() +
@@ -176,34 +181,36 @@ save_plot("unconditional.pdf", sub_dir = "simulations")
 
 results3 |>
   filter(model %in% model_values) |>
-  plot_unconditional("fsc") +
-  labs(y = "fsc") +
-  theme(axis.title.y = element_text(family = familyCaps))
-save_plot("fsc.pdf", sub_dir = "simulations")
-
+  plot_unconditional(c("fsc", "ccmse")) +
+  labs(y = "") +
+  scale_y_continuous(breaks = scales::breaks_width(0.1)) +
+  theme(strip.text.y = element_text(family = familyCaps))
+save_plot("fsc_ccmse.pdf", sub_dir = "simulations")
 results3 |>
-  filter(model %in% model_values) |>
-  plot_unconditional("ccmse") +
-  labs(y = "ccmse") +
-  theme(axis.title.y = element_text(family = familyCaps))
-save_plot("ccmse.pdf", sub_dir = "simulations")
+  plot_unconditional(c("fsc", "ccmse")) +
+  labs(y = "") +
+  scale_y_continuous(breaks = scales::breaks_width(0.1)) +
+  theme(strip.text.y = element_text(family = familyCaps))
+save_plot("fsc_ccmse_full.pdf", sub_dir = "simulations")
 
 results3 |>
   filter(n %in% n_values & model %in% model_values) |>
   plot_conditional("coverage") +
   labs(y = "Conditional coverage")
 save_plot("conditional_coverage.pdf", sub_dir = "simulations")
+results3 |>
+  plot_conditional("coverage") +
+  labs(y = "Conditional coverage")
+save_plot("conditional_coverage_full.pdf", aspect = 3/2, sub_dir = "simulations")
 
 results3 |>
   filter(n%in% n_values & model %in% model_values) |>
-  plot_conditional("leng") +
+  plot_conditional("leng", scales = "free_y") +
   labs(y = "Conditional length")
-save_plot("conditional_length.pdf", sub_dir = "simulations")
-
 results3 |>
-  filter(n %in% n_values & model %in% model_values) |>
-  plot_conditional_coverage_glm()
-save_plot("conditional_coverage_glm.pdf", sub_dir = "simulations")
+  plot_conditional("leng", scales = "free_y") +
+  labs(y = "Conditional length")
+save_plot("conditional_length_full.pdf", aspect = 3 / 2, sub_dir = "simulations")
 
 
 #### Theorem 4 – Conditional coverage + Length improvement.
@@ -256,7 +263,7 @@ results4 |>
   } , .groups = "drop") |>
   prepare_for_plot(c("model", "method")) |>
   filter(n %in% n_values) |>
-  plot_conditional("leng") +
+  plot_conditional("leng", scales = "free_y") +
   theme(strip.text.y = element_text(family = family)) +
   labs(y = "Relative improvement")
 save_plot("length_improvement.pdf", aspect = 3/2, sub_dir = "simulations")
