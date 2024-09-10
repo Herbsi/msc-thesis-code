@@ -15,6 +15,9 @@ source("table-lib.R")
 
 ### Load data ------------------------------------------------------------------
 
+results3 <- readRDS(file.path("results", "theorem-3-euler", "20240909091803", "result070756.rds"))
+results4 <- readRDS(file.path("results", "theorem-4-euler", "20240909091825", "result153438.rds"))
+
 alpha_sig <- 0.1
 n_values <- c(128, 1024, 16384)
 model_values <- c("AR(NI)", "NI", "AR(P)", "S")
