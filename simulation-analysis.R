@@ -123,6 +123,7 @@ plot_conditional <- function(dt, metric, scales = "fixed") {
     theme_dcp() +
     theme(
       axis.text.x = element_text(angle = -45, hjust = 0, vjust = 1),
+      strip.text.x = element_text(family = familyMath),
       strip.text.y = element_text(family = familyCaps)
     )
 }
@@ -210,6 +211,7 @@ results3 |>
   filter(n%in% n_values & model %in% model_values) |>
   plot_conditional("leng", scales = "free_y") +
   labs(y = "Conditional length")
+save_plot("conditional_length.pdf", sub_dir = "simulations")
 results3 |>
   plot_conditional("leng", scales = "free_y") +
   labs(y = "Conditional length")
