@@ -17,4 +17,4 @@ ggplot(data = tibble::tibble(X, cc = 2 * pnorm(qR / X) - 1)) +
     y = "Conditional coverage"
   ) +
   theme_dcp()
-save_plot("dcp-fig1.pdf")
+save_plot("dcp-fig1.pdf", aspect = 9 / 16)

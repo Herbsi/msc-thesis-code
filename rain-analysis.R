@@ -172,6 +172,6 @@ ggplot(dt) +
   theme_dcp() +
   theme(
     axis.title.x = element_text(family = family),
-    axis.text.x = element_text(family = family)
+    axis.text.x = element_text(family = family, angle = -45, hjust = 0, vjust = 1)
   )
-save_plot("conditional_ZRH2.pdf", sub_dir = "rain")
+save_plot("conditional_ZRH2.pdf", aspect = 9 / 16, sub_dir = "rain")

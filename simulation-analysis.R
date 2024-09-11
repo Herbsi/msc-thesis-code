@@ -204,7 +204,8 @@ results3 |>
 save_plot("conditional_coverage.pdf", sub_dir = "simulations")
 results3 |>
   plot_conditional("coverage") +
-  labs(y = "Conditional coverage")
+  labs(y = "Conditional coverage") +
+  theme(axis.text.x = element_text(size = 6))
 save_plot("conditional_coverage_full.pdf", aspect = 4 / 3, sub_dir = "simulations")
 
 results3 |>
@@ -214,7 +215,8 @@ results3 |>
 save_plot("conditional_length.pdf", sub_dir = "simulations")
 results3 |>
   plot_conditional("leng", scales = "free_y") +
-  labs(y = "Conditional length")
+  labs(y = "Conditional length") +
+  theme(axis.text.x = element_text(size = 6))
 save_plot("conditional_length_full.pdf", aspect = 4 / 3, sub_dir = "simulations")
 
 
@@ -272,4 +274,4 @@ results4 |>
   plot_conditional("leng", scales = "free_y") +
   theme(strip.text.y = element_text(family = family)) +
   labs(y = "Relative improvement")
-save_plot("length_improvement.pdf", aspect = 4 / 3, sub_dir = "simulations")
+save_plot("length_improvement.pdf", aspect = 3 / 2, sub_dir = "simulations")
